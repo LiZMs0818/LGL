@@ -1,0 +1,3293 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="--accent: #3b82f6;">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquid Glass Lab · v1.8.9</title>
+<style>
+* {
+  margin:0; padding:0; box-sizing:border-box;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+html,body { width:100%; height:100%; overflow:hidden; background:#000; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+button, input, textarea, select {
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+:root { --accent: #3b82f6; }
+
+.bg {
+  position:fixed; inset:0; width:100%; height:100%;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  pointer-events:none; user-select:none; -webkit-user-drag:none;
+  z-index:0;
+}
+
+.page { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .26s ease; z-index:1; overflow:hidden; }
+.page.active { opacity:1; pointer-events:auto; z-index:2; }
+
+.round-btn {
+  position:absolute; top:24px; right:24px; width:44px; height:44px;
+  border:none; background:transparent; padding:0; border-radius:50%;
+  cursor:pointer; z-index:25;
+  display:flex; align-items:center; justify-content:center;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,.18));
+}
+.round-btn .round-glass { position:absolute; inset:0; pointer-events:none; border-radius:50%; }
+.round-btn svg {
+  width:20px; height:20px; color:rgba(255,255,255,.92);
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.4));
+  z-index:2; position:relative;
+  transition: transform .16s cubic-bezier(.3,.7,.4,1.3);
+}
+.round-btn:active svg { transform: scale(1.18); }
+
+.back-btn {
+  position:absolute; top:24px; left:24px; z-index:25;
+  width:44px; height:44px;
+  border:none; background:transparent; padding:0;
+  border-radius:50%;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,.18));
+}
+.back-btn .back-glass { position:absolute; inset:0; pointer-events:none; border-radius:50%; }
+.back-btn .back-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.92); z-index:2; }
+.back-btn .back-label svg {
+  width:18px; height:18px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.4));
+  transition: transform .16s cubic-bezier(.3,.7,.4,1.3);
+}
+.back-btn:active .back-label svg { transform: scale(1.18); }
+
+.home-content { display:flex; flex-direction:column; align-items:center; gap:34px; width:min(900px, 92vw); }
+.home-head { text-align:center; }
+.home-head h1 { font-size:34px; font-weight:800; letter-spacing:-.02em; color:#fff; text-shadow: 0 2px 20px rgba(0,0,0,.45), 0 1px 4px rgba(0,0,0,.4); margin-bottom:8px; }
+.home-head p { font-size:13px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.62); text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.home-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; width:100%; }
+.home-card { position:relative; height:152px; border:none; background:transparent; padding:0; border-radius:20px; cursor:pointer; filter: drop-shadow(0 4px 16px rgba(0,0,0,.2)); }
+.home-card canvas { position:absolute; left:0; top:0; pointer-events:none; }
+.card-body {
+  position:absolute; inset:0; z-index:2;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  color:#fff; text-shadow: 0 1px 4px rgba(0,0,0,.45); pointer-events:none;
+  transition: transform .16s cubic-bezier(.3,.7,.4,1.3);
+}
+.home-card:active .card-body { transform: scale(1.06); }
+.card-icon { width:30px; height:30px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.35)); }
+.card-title { font-size:15px; font-weight:600; letter-spacing:.02em; }
+.card-desc { font-size:11px; color:rgba(255,255,255,.62); letter-spacing:.04em; }
+.home-foot { font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.42); text-shadow: 0 1px 6px rgba(0,0,0,.5); }
+
+.lens { position:absolute; left:0; top:0; width:220px; height:72px; cursor:grab; touch-action:none; will-change:transform; filter: drop-shadow(0 3px 10px rgba(0,0,0,.18)); z-index:5; }
+.lens.dragging { cursor:grabbing; }
+.lens canvas { display:block; position:absolute; left:0; top:0; }
+
+.sheet {
+  position:absolute; right:24px; top:24px; width:320px;
+  max-width:calc(100vw - 48px); max-height:calc(100vh - 48px);
+  border-radius:20px; z-index:15;
+  opacity:0; pointer-events:none; overflow:hidden;
+  filter: drop-shadow(0 5px 16px rgba(0,0,0,.22));
+  will-change: top, right, width, height, border-radius, opacity;
+}
+.sheet.open { pointer-events:auto; }
+.sheet .sheet-inner { opacity:0; }
+.sheet.open .sheet-inner { opacity:1; transition:opacity .18s ease .12s; }
+/* sheet 展开期间母按钮隐藏，二者不同时存在，关闭动画结束后恢复 */
+.round-btn.dim { opacity:0; transform:scale(.5); pointer-events:none;
+  transition:opacity .16s ease, transform .22s cubic-bezier(.32,.72,.35,1); }
+/* 高度由 fitSheetHeight 按内容自适应，不再固定抬高造成底部空白 */
+
+/* ===== 外观主题：只给全局控件叠层，模拟对象（透镜/文字/开关/滑条本体）不受影响 =====
+   罩层用 ::after 压在玻璃 canvas 之上、内容之下；浅色上白磨砂，深色压暗层，文字保持亮以保证可读 */
+.sheet::after, .settings-card::after, .round-btn::after, .back-btn::after, .home-card::after {
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+  background: rgba(255,255,255,.09);
+}
+body.theme-dark .sheet::after,
+body.theme-dark .settings-card::after,
+body.theme-dark .round-btn::after,
+body.theme-dark .back-btn::after,
+body.theme-dark .home-card::after {
+  background: rgba(9,12,20,.46);
+}
+/* 内容提到罩层之上 */
+.sheet-inner { z-index:2; }
+/* 深色下提亮控件内的轨道/按钮/边线，避免压层后糊成一团 */
+body.theme-dark input[type=range] { background:rgba(255,255,255,.22); }
+body.theme-dark .switch .track { background:rgba(255,255,255,.26); }
+body.theme-dark .sheet-tab,
+body.theme-dark .mode-btn { background:rgba(255,255,255,.12); color:rgba(255,255,255,.82); }
+body.theme-dark .file-btn,
+body.theme-dark .reset-btn,
+body.theme-dark input[type=text] { background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.24); }
+body.theme-dark .kv { border-bottom-color:rgba(255,255,255,.14); }
+
+/* 浅色：白磨砂罩加厚，控件文字改深色以保证对比可读（模拟对象不受影响） */
+body:not(.theme-dark) .sheet::after,
+body:not(.theme-dark) .settings-card::after,
+body:not(.theme-dark) .round-btn::after,
+body:not(.theme-dark) .back-btn::after,
+body:not(.theme-dark) .home-card::after { background:rgba(255,255,255,.18); }
+body:not(.theme-dark) .sheet-inner,
+body:not(.theme-dark) .settings-body { color:rgba(26,30,38,.92); text-shadow:none; }
+body:not(.theme-dark) .sheet-inner .row label span:last-child { color:#2563eb; }
+body:not(.theme-dark) .sheet-tab,
+body:not(.theme-dark) .mode-btn { background:rgba(26,30,38,.08); color:rgba(26,30,38,.72); }
+body:not(.theme-dark) .sheet-tab.active { color:#2563eb; background:rgba(37,99,235,.14); }
+body:not(.theme-dark) .file-btn,
+body:not(.theme-dark) .reset-btn,
+body:not(.theme-dark) input[type=text] { color:rgba(26,30,38,.85); border-color:rgba(26,30,38,.18); background:rgba(255,255,255,.4); }
+body:not(.theme-dark) input[type=range] { background:rgba(26,30,38,.22); }
+body:not(.theme-dark) .switch .track { background:rgba(26,30,38,.25); }
+body:not(.theme-dark) .kv { border-bottom-color:rgba(26,30,38,.12); }
+body:not(.theme-dark) .settings-body h3 { color:rgba(26,30,38,.5); }
+body:not(.theme-dark) .card-body,
+body:not(.theme-dark) .round-btn svg,
+body:not(.theme-dark) .back-label { color:rgba(26,30,38,.9); text-shadow:none; }
+body:not(.theme-dark) .card-desc { color:rgba(26,30,38,.6); }
+body:not(.theme-dark) .pane-title { color:rgba(26,30,38,.6); }
+body:not(.theme-dark) .sheet-tab:hover:not(.active) { color:rgba(26,30,38,.92); }
+body:not(.theme-dark) input[type=text]::placeholder { color:rgba(26,30,38,.4); }
+body:not(.theme-dark) .kv .k { color:rgba(26,30,38,.65); }
+body:not(.theme-dark) .kv .v { color:#2563eb; }
+body:not(.theme-dark) .settings-body h2 { color:rgba(26,30,38,.92); }
+body:not(.theme-dark) .setting-row .setting-label { color:rgba(26,30,38,.9); }
+body:not(.theme-dark) .ai-note { color:rgba(26,30,38,.65); }
+body:not(.theme-dark) .ai-note strong { color:rgba(26,30,38,.9); }
+body:not(.theme-dark) .help-list li { color:rgba(26,30,38,.75); }
+body:not(.theme-dark) .help-list .hl-key { color:#2563eb; }
+body:not(.theme-dark) .precision-value { color:#2563eb; }
+/* sheet 内联浅色说明文字（版本/提示行）在白罩下压深 */
+body:not(.theme-dark) .sheet-inner .row[style*="255,255,255"] { color:rgba(26,30,38,.6) !important; }
+
+.sheet-glass { position:absolute; left:0; top:0; display:block; pointer-events:none; }
+.sheet-inner {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  padding:10px 12px 12px; color:rgba(255,255,255,.9); font-size:12px;
+  user-select:none; text-shadow: 0 1px 3px rgba(0,0,0,.35); overflow:hidden;
+}
+.sheet-tabs { display:flex; gap:4px; margin-bottom:10px; flex:none; }
+.sheet-tab {
+  flex:1; height:30px; border:none; background:rgba(255,255,255,.08); border-radius:8px;
+  color:rgba(255,255,255,.7); font-size:11px; font-family:inherit; letter-spacing:.02em;
+  cursor:pointer;
+  transition: background .18s, color .18s, transform .16s cubic-bezier(.3,.7,.4,1.3);
+}
+.sheet-tab.active { background:rgba(255,255,255,.2); color: var(--accent); font-weight:600; }
+.sheet-tab:hover:not(.active) { background:rgba(255,255,255,.12); color:rgba(255,255,255,.92); }
+.sheet-tab:active { transform: scale(1.08); }
+.sheet-panes { flex:1; overflow-y:auto; min-height:0; margin:0 -4px; padding:0 4px; }
+.sheet-panes::-webkit-scrollbar { width:4px; }
+.sheet-panes::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:2px; }
+
+.pane { display:none; }
+.pane.active { display:block; }
+.pane-title { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.55); margin-bottom:14px; display:flex; align-items:center; gap:6px; }
+.ver-tag { font-size:9px; font-weight:700; letter-spacing:.1em; color:rgba(120,200,255,.95); background:rgba(120,200,255,.12); border:1px solid rgba(120,200,255,.3); padding:1px 5px; border-radius:4px; text-transform:none; text-shadow:none; }
+
+.row { margin-bottom:12px; }
+.row:last-child { margin-bottom:0; }
+.row label { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.row label span:last-child { font-variant-numeric:tabular-nums; color:rgba(120,200,255,.95); font-weight:600; }
+
+input[type=range] { width:100%; height:4px; border-radius:2px; background:rgba(255,255,255,.18); display:block; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%; background:#fff; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+input[type=range]::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:#fff; cursor:pointer; border:none; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+
+.switch { position:relative; display:inline-block; width:44px; height:26px; flex:none; }
+.switch input { opacity:0; width:0; height:0; position:absolute; }
+.switch .track { position:absolute; inset:0; background:rgba(255,255,255,.18); border-radius:999px; transition:background .16s, transform .16s cubic-bezier(.3,.7,.4,1.3); cursor:pointer; }
+.switch .track::before { content:""; position:absolute; left:3px; top:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.16s; box-shadow:0 1px 2px rgba(0,0,0,.3); pointer-events:none; }
+.switch input:checked + .track { background:#3b82f6; }
+.switch input:checked + .track::before { transform:translateX(18px); }
+.switch:active .track { transform: scale(1.08); }
+
+input[type=color] { width:100%; height:26px; padding:0; border:1px solid rgba(255,255,255,.18); border-radius:8px; background:transparent; cursor:pointer; transition: transform .16s cubic-bezier(.3,.7,.4,1.3); }
+input[type=color]:active { transform: scale(1.04); }
+input[type=color]::-webkit-color-swatch-wrapper { padding:2px; }
+input[type=color]::-webkit-color-swatch { border:none; border-radius:6px; }
+input[type=color]::-moz-color-swatch { border:none; border-radius:6px; }
+
+.file-btn, .reset-btn { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.07); color:rgba(255,255,255,.88); font-size:12px; font-family:inherit; cursor:pointer; transition: background .14s, transform .16s cubic-bezier(.3,.7,.4,1.3); }
+.file-btn:hover, .reset-btn:hover { background:rgba(255,255,255,.14); }
+.file-btn:active, .reset-btn:active { transform: scale(1.03); }
+
+input[type=text] { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.07); color:rgba(255,255,255,.9); font-size:12px; font-family:inherit; text-shadow:none; transition:border-color .15s; }
+input[type=text]:focus { border-color:rgba(120,200,255,.5); }
+input[type=text]::placeholder { color:rgba(255,255,255,.35); }
+
+#textGlassCanvas { position:absolute; left:0; top:0; pointer-events:auto; cursor:grab; touch-action:none; z-index:5; filter: drop-shadow(0 3px 10px rgba(0,0,0,.18)); }
+#textGlassCanvas:active { cursor:grabbing; }
+
+.switch-stage {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.switch-base {
+  position:relative;
+  width:120px; height:60px; border-radius:30px;
+  background: rgba(120,120,128,0.35);
+  cursor:pointer;
+  filter: drop-shadow(0 4px 14px rgba(0,0,0,.18));
+  z-index:5;
+  touch-action:none;
+}
+.switch-base.on { background: #34c759; }
+.switch-base.dragging { cursor:grabbing; }
+.switch-knob {
+  position:absolute;
+  left:4px; top:4px;
+  width:64px; height:52px;
+  border-radius:26px;
+  overflow:hidden;
+  background:transparent;
+  pointer-events:none;
+  will-change: width, height, left, top, border-radius;
+}
+.knob-glass { position:absolute; left:0; top:0; pointer-events:none; opacity:0; display:none; }
+.knob-white { position:absolute; inset:0; background:#fff; pointer-events:none; border-radius:inherit; }
+
+/* ===== 液态滑块（无级 + 分段同页） ===== */
+.slider-stage {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.slider-group {
+  display:flex; flex-direction:column; align-items:center;
+  gap:18px; width:min(520px, 90vw);
+}
+.seg-label {
+  font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+  color:rgba(255,255,255,.55); align-self:flex-start; padding-left:6px;
+  text-shadow:0 1px 4px rgba(0,0,0,.35);
+}
+.slider-track {
+  position:relative;
+  width:min(480px, 88vw); height:8px; border-radius:4px;
+  background: rgba(120,120,128,0.28);
+  filter: drop-shadow(0 4px 14px rgba(0,0,0,.18));
+  z-index:5; touch-action:none; cursor:pointer;
+  transform-origin:center;
+}
+.slider-track.dragging { cursor:grabbing; }
+.seg-ticks { position:absolute; inset:0; pointer-events:none; }
+.seg-tick {
+  position:absolute;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:2px; height:8px;
+  background:rgba(255,255,255,0.3);
+  border-radius:1px;
+  transition:background .15s;
+}
+.seg-tick.filled { background:rgba(255,255,255,0.85); }
+.mode-btn-row { display:flex; gap:6px; margin-top:8px; }
+.mode-btn { flex:1; height:30px; border:none; background:rgba(255,255,255,.08); border-radius:8px; color:rgba(255,255,255,.7); font-size:11px; font-family:inherit; cursor:pointer; transition:background .18s, color .18s; }
+.mode-btn.active { background:rgba(255,255,255,.2); color:var(--accent); font-weight:600; }
+.seg-track { background: rgba(120,120,128,0.28); }
+/* 透明加宽命中区，便于捏拖细轨 */
+.slider-hit {
+  position:absolute; left:0; top:50%; transform:translateY(-50%);
+  width:100%; height:48px;
+}
+.slider-fill {
+  position:absolute; left:0; top:0; height:8px;
+  border-radius:4px;
+   background: #3b82f6;
+  pointer-events:none;
+}
+.slider-knob {
+  position:absolute;
+  width:44px; height:30px; border-radius:15px;
+  overflow:hidden; background:transparent; pointer-events:none;
+  will-change: width, height, left, top, border-radius;
+}
+
+.settings-wrap { width:min(560px, 92vw); height:min(720px, calc(100vh - 130px)); display:flex; flex-direction:column; }
+.settings-card { position:relative; width:100%; flex:1; border-radius:20px; filter: drop-shadow(0 6px 22px rgba(0,0,0,.22)); overflow:hidden; }
+.settings-card .glass-layer { position:absolute; left:0; top:0; pointer-events:none; }
+.settings-body { position:absolute; inset:0; padding:24px 24px 20px; overflow-y:auto; z-index:2; color:rgba(255,255,255,.9); font-size:13px; text-shadow:0 1px 3px rgba(0,0,0,.35); }
+.settings-body::-webkit-scrollbar { width:4px; }
+.settings-body::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:2px; }
+.settings-body h2 { font-size:17px; font-weight:700; letter-spacing:.02em; margin-bottom:22px; }
+.settings-body section { margin-bottom:24px; }
+.settings-body section:last-child { margin-bottom:0; }
+.settings-body h3 { font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.48); margin-bottom:12px; }
+.kv { display:flex; justify-content:space-between; align-items:baseline; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:13px; }
+.kv:last-child { border-bottom:none; }
+.kv .k { color:rgba(255,255,255,.6); }
+.kv .v { font-weight:600; font-variant-numeric:tabular-nums; }
+.setting-row { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:9px 0; cursor:default; }
+label.setting-row { cursor:pointer; }
+.precision-control { display:flex; align-items:center; gap:12px; width:280px; flex:none; }
+.precision-control input[type=range] { flex:1; min-width:0; }
+.precision-value { font-variant-numeric:tabular-nums; font-weight:600; color:rgba(120,200,255,.95); font-size:12px; min-width:52px; text-align:right; text-shadow:none; }
+
+.setting-row .setting-label { font-size:13px; color:rgba(255,255,255,.85); }
+.ai-note { font-size:12px; line-height:1.75; color:rgba(255,255,255,.62); }
+.ai-note strong { color:rgba(255,255,255,.85); font-weight:600; }
+.help-list { list-style:none; padding:0; margin:0; }
+.help-list li { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12px; line-height:1.6; color:rgba(255,255,255,.75); }
+.help-list li:last-child { border-bottom:none; }
+.help-list .hl-key { flex:none; min-width:66px; color:rgba(120,200,255,.95); font-weight:600; }
+.help-list .hl-desc { flex:1; }
+
+.fps-display { position:fixed; right:20px; bottom:20px; z-index:100; padding:6px 12px; border-radius:10px; background:rgba(16,18,24,.72); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); border:1px solid rgba(255,255,255,.1); color:rgba(120,255,180,.95); font-size:11px; font-variant-numeric:tabular-nums; font-weight:600; letter-spacing:.04em; pointer-events:none; opacity:0; transform: translateY(6px); transition: opacity .2s, transform .2s; }
+.fps-display.on { opacity:1; transform: translateY(0); }
+
+@media (max-width: 760px) {
+  .home-grid { grid-template-columns: 1fr; }
+  .home-head h1 { font-size:26px; }
+  .home-card { height:120px; }
+  .precision-control { width:220px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg" id="bgDiv" role="presentation"></div>
+
+<div class="page active" id="pageHome">
+  <button class="round-btn" id="settingsBtn" aria-label="设置">
+    <canvas class="round-glass" width="44" height="44" style="width: 44px; height: 44px;"></canvas>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+  </button>
+  <div class="home-content">
+    <div class="home-head">
+      <h1>Liquid Glass Lab</h1>
+      <p>液态玻璃模拟实验室</p>
+    </div>
+    <div class="home-grid">
+      <button class="home-card" data-go="capsule">
+        <canvas width="205" height="152" style="width: 205.109px; height: 152px;"></canvas>
+        <div class="card-body">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.4"></circle></svg>
+          <div class="card-title">胶囊模拟</div>
+          <div class="card-desc">凸透镜 · 色散 · 染色</div>
+        </div>
+      </button>
+      <button class="home-card" data-go="text">
+        <canvas width="205" height="152" style="width: 205.125px; height: 152px;"></canvas>
+        <div class="card-body">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2"></path><path d="M12 5v14"></path><path d="M9 19h6"></path></svg>
+          <div class="card-title">文字玻璃</div>
+          <div class="card-desc">字形轮廓 · 折射 · 色散</div>
+        </div>
+      </button>
+      <button class="home-card" data-go="toggle">
+        <canvas width="205" height="152" style="width: 205.109px; height: 152px;"></canvas>
+        <div class="card-body">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="2" y="7" width="20" height="10" rx="5"></rect><circle cx="7" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
+          <div class="card-title">胶囊开关</div>
+          <div class="card-desc">液态变形 · 状态切换</div>
+        </div>
+      </button>
+      <button class="home-card" data-go="slider">
+        <canvas width="205" height="152" style="width: 205.125px; height: 152px;"></canvas>
+        <div class="card-body">
+          <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><circle cx="9" cy="12" r="3.2" fill="currentColor" stroke="none"></circle></svg>
+          <div class="card-title">液态滑块</div>
+          <div class="card-desc">跟手拖动 · 玻璃拇指</div>
+        </div>
+      </button>
+    </div>
+    <div class="home-foot">v1.8.9 · LIQUID GLASS LAB</div>
+  </div>
+</div>
+
+<div class="page" id="pageCapsule">
+  <button class="back-btn" id="backFromCapsule">
+    <canvas class="back-glass"></canvas>
+    <span class="back-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+  </button>
+
+  <button class="round-btn" id="capsuleParamBtn" aria-label="参数">
+    <canvas class="round-glass"></canvas>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="11" cy="18" r="2.2" fill="currentColor" stroke="none"></circle></svg>
+  </button>
+
+  <div class="lens" id="lens"><canvas id="lensCanvas"></canvas></div>
+
+  <div class="sheet morph-closed" id="sheet">
+    <canvas class="sheet-glass" id="sheetCanvas"></canvas>
+    <div class="sheet-inner">
+      <div class="sheet-tabs" id="capsuleSheetTabs">
+        <button class="sheet-tab active" data-tab="lens">透镜</button>
+        <button class="sheet-tab" data-tab="tint">染色</button>
+        <button class="sheet-tab" data-tab="bg">背景</button>
+        <button class="sheet-tab" data-tab="ltext">文字</button>
+        <button class="sheet-tab" data-tab="more">更多</button>
+      </div>
+      <div class="sheet-panes">
+        <div class="pane active" data-pane="lens">
+          <div class="row"><label><span>组件大小</span><span id="vLensSize">1.00×</span></label><input type="range" id="lensSize" min="0.7" max="1.8" step="0.05" value="1"></div>
+          <div class="row"><label><span>位移强度</span><span id="vAmp">20</span></label><input type="range" id="amp" min="-60" max="60" step="1" value="20"></div>
+          <div class="row"><label><span>形变范围</span><span id="vRange">1.00</span></label><input type="range" id="rangeSlider" min="0" max="1" step="0.01" value="1"></div>
+          <div class="row"><label><span>曲线曲率</span><span id="vCurve">3.00</span></label><input type="range" id="curve" min="0.3" max="3" step="0.01" value="3"></div>
+          <div class="row"><label><span>模糊</span><span id="vBlur">0.0</span></label><input type="range" id="blur" min="0" max="20" step="0.5" value="0"></div>
+          <div class="row"><label><span>色散强度</span><span id="vDisp">0.0</span></label><input type="range" id="dispersion" min="0" max="10" step="0.1" value="0"></div>
+          <div class="row"><label><span>高光强度</span><span id="vSpec">1.00</span></label><input type="range" id="specIntensity" min="0" max="2" step="0.05" value="1"></div>
+          <div class="row"><label><span>高光宽度</span><span id="vSpecW">1.5</span></label><input type="range" id="specWidth" min="0.5" max="8" step="0.5" value="1.5"></div>
+        </div>
+        <div class="pane" data-pane="tint">
+          <div class="row"><label><span>启用染色</span><span class="switch"><input type="checkbox" id="tintOn"><span class="track"></span></span></label></div>
+          <div class="row"><label><span>颜色</span><span id="vTintColor">#3b82f6</span></label><input type="color" id="tintColor" value="#3b82f6"></div>
+          <div class="row"><label><span>浓度</span><span id="vTintAmt">0.35</span></label><input type="range" id="tintAmt" min="0" max="1" step="0.01" value="0.35"></div>
+        </div>
+        <div class="pane" data-pane="bg">
+          <div class="row"><button class="file-btn" id="bgUploadBtn">上传自定义背景</button><input type="file" id="bgFile" accept="image/*" hidden></div>
+          <div class="row"><button class="file-btn" id="bwBgBtn">黑白对比测试背景</button></div>
+          <div class="row"><button class="reset-btn" id="bgResetBtn">恢复默认背景</button></div>
+        </div>
+        <div class="pane" data-pane="ltext">
+          <div class="row"><label><span>胶囊文字</span></label><input type="text" id="lensTextInput" placeholder="输入文字（最多 12 字）" maxlength="12"></div>
+        </div>
+        <div class="pane" data-pane="more">
+          <div class="row"><button class="reset-btn" id="resetAllBtn">重置所有参数</button></div>
+          <div class="row" style="color:rgba(255,255,255,.5); font-size:11px; line-height:1.6;">液态玻璃凸透镜模拟<br>版本 v1.8.9 · Liquid Glass Lab</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pageText">
+  <button class="back-btn" id="backFromText">
+    <canvas class="back-glass"></canvas>
+    <span class="back-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+  </button>
+
+  <button class="round-btn" id="textParamBtn" aria-label="参数">
+    <canvas class="round-glass"></canvas>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="11" cy="18" r="2.2" fill="currentColor" stroke="none"></circle></svg>
+  </button>
+
+  <canvas id="textGlassCanvas" width="0" height="0"></canvas>
+
+  <div class="sheet morph-closed" id="textSheet">
+    <canvas class="sheet-glass" id="textSheetCanvas"></canvas>
+    <div class="sheet-inner">
+      <div class="sheet-tabs" id="textSheetTabs">
+        <button class="sheet-tab active" data-tab="tglass">玻璃</button>
+        <button class="sheet-tab" data-tab="ttint">染色</button>
+        <button class="sheet-tab" data-tab="ttext">文字</button>
+        <button class="sheet-tab" data-tab="tmore">更多</button>
+      </div>
+      <div class="sheet-panes">
+        <div class="pane active" data-pane="tglass">
+          <div class="row"><label><span>位移强度 (%)</span><span id="tvAmp">50</span></label><input type="range" id="tAmp" min="0" max="100" step="1" value="50"></div>
+          <div class="row"><label><span>形变范围</span><span id="tvRange">1.00</span></label><input type="range" id="tRange" min="0.05" max="1" step="0.01" value="1"></div>
+          <div class="row"><label><span>曲线曲率</span><span id="tvCurve">3.00</span></label><input type="range" id="tCurve" min="0.3" max="3" step="0.01" value="3"></div>
+          <div class="row"><label><span>模糊</span><span id="tvBlur">0.0</span></label><input type="range" id="tBlur" min="0" max="20" step="0.5" value="0"></div>
+          <div class="row"><label><span>色散强度</span><span id="tvDisp">0.0</span></label><input type="range" id="tDisp" min="0" max="10" step="0.1" value="0"></div>
+          <div class="row"><label><span>字号</span><span id="tvFontSize">160</span></label><input type="range" id="tFontSize" min="60" max="300" step="2" value="160"></div>
+          <div class="row"><label><span>字重</span><span id="tvFontWeight">700</span></label><input type="range" id="tFontWeight" min="100" max="900" step="100" value="700"></div>
+          <div class="row"><label><span>转角圆滑</span><span id="tvCornerRound">0.0</span></label><input type="range" id="tCornerRound" min="0" max="10" step="0.5" value="0"></div>
+          <div class="row"><label><span>高光强度</span><span id="tvSpec">1.00</span></label><input type="range" id="tSpecIntensity" min="0" max="2" step="0.05" value="1"></div>
+          <div class="row"><label><span>高光宽度</span><span id="tvSpecW">1.5</span></label><input type="range" id="tSpecWidth" min="0.5" max="8" step="0.5" value="1.5"></div>
+        </div>
+        <div class="pane" data-pane="ttint">
+          <div class="row"><label><span>启用染色</span><span class="switch"><input type="checkbox" id="tTintOn"><span class="track"></span></span></label></div>
+          <div class="row"><label><span>颜色</span><span id="tvTintColor">#3b82f6</span></label><input type="color" id="tTintColor" value="#3b82f6"></div>
+          <div class="row"><label><span>浓度</span><span id="tvTintAmt">0.35</span></label><input type="range" id="tTintAmt" min="0" max="1" step="0.01" value="0.35"></div>
+        </div>
+        <div class="pane" data-pane="ttext">
+          <div class="row"><label><span>文字内容</span></label><input type="text" id="textGlassInput" placeholder="输入文字..." value="LIQUID" maxlength="20"></div>
+        </div>
+        <div class="pane" data-pane="tmore">
+          <div class="row"><button class="file-btn" id="tBgUploadBtn">上传自定义背景</button><input type="file" id="tBgFile" accept="image/*" hidden></div>
+          <div class="row"><button class="file-btn" id="tBwBgBtn">黑白对比测试背景</button></div>
+          <div class="row"><button class="reset-btn" id="tBgResetBtn">恢复默认背景</button></div>
+          <div class="row"><button class="reset-btn" id="tResetAllBtn">重置所有参数</button></div>
+          <div class="row" style="color:rgba(255,255,255,.5); font-size:11px; line-height:1.6;">液态玻璃文字模拟<br>版本 v1.8.9 · Liquid Glass Lab</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pageToggle">
+  <button class="back-btn" id="backFromToggle">
+    <canvas class="back-glass"></canvas>
+    <span class="back-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+  </button>
+
+  <button class="round-btn" id="toggleParamBtn" aria-label="参数">
+    <canvas class="round-glass"></canvas>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="11" cy="18" r="2.2" fill="currentColor" stroke="none"></circle></svg>
+  </button>
+
+  <div class="sheet morph-closed" id="toggleSheet">
+    <canvas class="sheet-glass" id="toggleSheetCanvas"></canvas>
+    <div class="sheet-inner">
+      <div class="sheet-panes">
+        <div class="pane active" data-pane="tsize">
+          <div class="row"><label><span>组件大小</span><span id="vToggleSize">1.00×</span></label><input type="range" id="toggleSize" min="0.7" max="1.6" step="0.05" value="1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="switch-stage">
+    <div class="switch-base" id="switchBase">
+      <div class="switch-knob" id="switchKnob">
+        <canvas class="knob-glass" id="knobGlass"></canvas>
+        <div class="knob-white" id="knobWhite"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pageSlider">
+  <button class="back-btn" id="backFromSlider">
+    <canvas class="back-glass"></canvas>
+    <span class="back-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+  </button>
+
+  <button class="round-btn" id="sliderParamBtn" aria-label="参数">
+    <canvas class="round-glass"></canvas>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="12" x2="20" y2="12"></line><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"></circle><line x1="4" y1="18" x2="20" y2="18"></line><circle cx="11" cy="18" r="2.2" fill="currentColor" stroke="none"></circle></svg>
+  </button>
+
+  <div class="sheet morph-closed" id="sliderSheet">
+    <canvas class="sheet-glass" id="sliderSheetCanvas"></canvas>
+    <div class="sheet-inner">
+      <div class="sheet-tabs" id="sliderSheetTabs">
+        <button class="sheet-tab active" data-tab="smode">模式</button>
+        <button class="sheet-tab" data-tab="ssize">大小</button>
+      </div>
+      <div class="sheet-panes">
+        <div class="pane active" data-pane="smode">
+          <div class="row">
+            <label><span>滑条模式</span></label>
+            <div class="mode-btn-row">
+              <button class="mode-btn active" id="modeContinuous">无级</button>
+              <button class="mode-btn" id="modeSegmented">分段</button>
+            </div>
+          </div>
+          <div class="row" id="segCountRow" style="display:none;">
+            <label><span>分段数量</span><span id="vSegCount">5</span></label>
+            <input type="range" id="segCount" min="2" max="12" step="1" value="5">
+          </div>
+          <div class="row" id="segHintRow" style="display:none; color:rgba(255,255,255,.5); font-size:11px; line-height:1.6;">
+            拖动带阻尼，松手自动吸附到最近一段，刻度显示段位。
+          </div>
+        </div>
+        <div class="pane" data-pane="ssize">
+          <div class="row" id="sliderSizeRow"><label><span>无级条大小</span><span id="vSliderSize">1.00×</span></label><input type="range" id="sliderSize" min="0.7" max="1.5" step="0.05" value="1"></div>
+          <div class="row" id="segSizeRow" style="display:none;"><label><span>分段条大小</span><span id="vSegSize">1.00×</span></label><input type="range" id="segSize" min="0.7" max="1.5" step="0.05" value="1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+   <div class="slider-stage">
+    <div class="slider-group">
+      <div class="slider-track" id="sliderTrack" style="width: 480px;">
+        <div class="slider-fill" id="sliderFill" style="width: 240px;"></div>
+        <div class="slider-hit"></div>
+        <div class="slider-knob" id="sliderKnob" style="left: 218px; top: -11px; width: 44px; height: 30px; border-radius: 15px;">
+          <canvas class="knob-glass" id="sliderKnobGlass"></canvas>
+          <div class="knob-white" id="sliderKnobWhite"></div>
+        </div>
+      </div>
+      <div class="slider-track seg-track" id="segTrack" style="width: 480px; display: none;">
+        <div class="slider-fill seg-fill" id="segFill" style="width: 240px;"></div>
+        <div class="seg-ticks" id="segTicks"></div>
+        <div class="slider-hit"></div>
+        <div class="slider-knob" id="segKnob" style="left: 218px; top: -11px; width: 44px; height: 30px; border-radius: 15px;">
+          <canvas class="knob-glass" id="segKnobGlass"></canvas>
+          <div class="knob-white" id="segKnobWhite"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pageSettings">
+  <button class="back-btn" id="backFromSettings">
+    <canvas class="back-glass"></canvas>
+    <span class="back-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+  </button>
+  <div class="settings-wrap">
+    <div class="settings-card" id="settingsCard">
+      <canvas class="glass-layer" id="settingsCanvas"></canvas>
+      <div class="settings-body">
+        <h2>设置</h2>
+        <section>
+          <h3>关于</h3>
+          <div class="kv"><span class="k">项目</span><span class="v">Liquid Glass Lab</span></div>
+          <div class="kv"><span class="k">版本</span><span class="v">v1.8.9</span></div>
+          <div class="kv"><span class="k">稳定版</span><span class="v">LTX1.7</span></div>
+          <div class="kv"><span class="k">核心</span><span class="v">像素级液态玻璃渲染</span></div>
+        </section>
+        <section>
+          <h3>帮助</h3>
+          <ul class="help-list">
+            <li><span class="hl-key">设置</span><span class="hl-desc">主界面右上角齿轮按钮进入设置，可调节渲染精度、采样频率与帧率显示。</span></li>
+            <li><span class="hl-key">胶囊模拟</span><span class="hl-desc">拖动胶囊移动位置；右上角参数按钮打开透镜、染色、背景、文字面板。</span></li>
+            <li><span class="hl-key">文字玻璃</span><span class="hl-desc">拖动文字改变位置；右上角参数按钮打开玻璃、染色、文字、更多面板。</span></li>
+            <li><span class="hl-key">胶囊开关</span><span class="hl-desc">按下即放大变玻璃；拖动时形变随位移和速度实时变化；松手弹簧吸附；短按不动播放点击动画。</span></li>
+          </ul>
+        </section>
+        <section>
+          <h3>外观</h3>
+          <label class="setting-row">
+            <span class="setting-label">深色模式（全局控件压暗层，模拟对象不变）</span>
+            <span class="switch"><input type="checkbox" id="darkModeToggle"><span class="track"></span></span>
+          </label>
+        </section>
+        <section>
+          <h3>渲染</h3>
+          <div class="setting-row">
+            <span class="setting-label">渲染精度</span>
+            <div class="precision-control">
+              <input type="range" id="precisionSlider" min="0.1" max="2" step="0.1" value="1">
+              <span class="precision-value" id="precisionValue">1.0×</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">采样频率</span>
+            <div class="precision-control">
+              <input type="range" id="fpsSlider" min="15" max="120" step="1" value="60">
+              <span class="precision-value" id="fpsValue">60fps</span>
+            </div>
+          </div>
+          <label class="setting-row">
+            <span class="setting-label">显示实时帧率</span>
+            <span class="switch"><input type="checkbox" id="fpsToggle"><span class="track"></span></span>
+          </label>
+          <p class="ai-note" style="margin-top:10px; font-size:11px;">精度 1.0× 为默认平衡档，2.0× 为高清档。采样频率是渲染帧率上限，实际帧率受屏幕刷新率限制。</p>
+        </section>
+        <section>
+          <h3>版本</h3>
+          <p class="ai-note"><strong>v1.8.9</strong> 形变强度默认 0.5× 并移除设置滑块；拖动新增位移驱动形变，与点击同幅度；点击动画 510ms→340ms，玻璃淡入淡出改用 easeOutQuart 更利落。<br><strong>v1.8.8</strong> 开关拖动同步放大变玻璃；形变系数提升；点击动画叠加正弦钟形形变；精度/采样滑条加长；帧率开关加大。<br><strong>v1.8.7</strong> 开关拖动/点击全程玻璃；速度驱动形变；弹簧回弹。<br><strong>v1.8.6</strong> 支持拖动，横向果冻形变。<br><strong>v1.8.5</strong> 开关玻璃纯物理采样。<br><strong>v1.8.4</strong> 底座不透明绿；背景 CSS。<br><strong>v1.8.3</strong> 采样偏移 10，放大 1.7×。<br><strong>v1.8.2</strong> 放大 1.55×，动画 430ms。<br><strong>v1.8.1</strong> 返回键圆形化；文字输入进 sheet；默认不染色。<br><strong>v1.8</strong> 新增胶囊开关。<br><strong>LTX1.7</strong> 第二稳定版。</p>
+        </section>
+        <section>
+          <h3>AI 声明</h3>
+          <p class="ai-note">本项目 <strong>Liquid Glass Lab</strong> 由人类与 AI 协作完成。AI 负责代码编写、算法实现与效果调校；人类负责设计方向、交互决策与最终验收。所有液态玻璃视觉效果均在浏览器端实时计算，不依赖任何外部素材或预渲染贴图。如基于本项目二次创作，欢迎保留这份声明。</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fps-display" id="fpsDisplay">-- FPS</div>
+
+<script>
+/* ================================================================
+   Liquid Glass Lab · v1.8.9
+   - 形变强度默认 0.5×，移除设置滑块
+   - 拖动新增位移驱动形变，与点击同幅度
+   - 点击动画 510ms→340ms，玻璃淡入淡出改用 easeOutQuart
+   ================================================================ */
+
+let W = 220, H = 72;
+const LENS_BASE_W = 220, LENS_BASE_H = 72;
+const SHEET_W = 320, SHEET_H = 360, TEXT_SHEET_H = 460;
+const DISP_MAX = 0.3;
+const DARK_OVERLAY_MAX = 0.32;
+const LUM_DARK = 0.15;
+const LUM_LIGHT = 0.55;
+const TEXT_DPR = 3;
+
+const SPEC_L1X = -0.70710678, SPEC_L1Y = -0.70710678;
+const SPEC_L2X =  0.70710678, SPEC_L2Y =  0.70710678;
+const SPEC_RATIO2 = 0.45;
+
+const params = { amp: 20, range: 1, curve: 3, blur: 0, dispersion: 0, specIntensity: 1, specWidth: 1.5 };
+let lensText = '';
+
+let precisionValue = 1;
+function getDPR() { return Math.max(0.1, Math.min(2, precisionValue || 1)); }
+
+let targetFps = 60;
+function frameInterval() { return 1000 / targetFps; }
+
+let lastCapsuleRender = 0;
+let lastTextRender = 0;
+
+const glassBufCache = new Map();
+function getGlassBuf(cw, ch) {
+  const key = cw + 'x' + ch;
+  let entry = glassBufCache.get(key);
+  if (!entry) {
+    entry = { color: new Uint8ClampedArray(cw * ch * 3), img: null };
+    if (glassBufCache.size >= 8) {
+      const firstKey = glassBufCache.keys().next().value;
+      glassBufCache.delete(firstKey);
+    }
+    glassBufCache.set(key, entry);
+  }
+  return entry;
+}
+
+let currentPage = 'home';
+function showPage(name) {
+  currentPage = name;
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === 'page' + name.charAt(0).toUpperCase() + name.slice(1));
+  });
+  requestAnimationFrame(() => {
+    if (name === 'home') renderHome();
+    else if (name === 'capsule') { layoutCapsule(); renderCapsuleAll(); }
+    else if (name === 'text') { layoutTextGlass(); renderTextAll(); }
+    else if (name === 'toggle') { layoutToggle(); }
+    else if (name === 'slider') { layoutSlider(); }
+    else if (name === 'settings') renderSettings();
+  });
+}
+document.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => showPage(btn.dataset.go)));
+document.getElementById('backFromCapsule').addEventListener('click', () => showPage('home'));
+document.getElementById('backFromText').addEventListener('click', () => showPage('home'));
+document.getElementById('backFromToggle').addEventListener('click', () => showPage('home'));
+document.getElementById('backFromSlider').addEventListener('click', () => showPage('home'));
+document.getElementById('backFromSettings').addEventListener('click', () => showPage('home'));
+document.getElementById('settingsBtn').addEventListener('click', () => showPage('settings'));
+
+/* ================= 背景 ================= */
+function makeBgUrl() {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+    <defs>
+      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ff8a4c"/><stop offset="42%" stop-color="#ff3f7f"/><stop offset="100%" stop-color="#4b4bff"/></linearGradient>
+      <radialGradient id="g2" cx="26%" cy="20%" r="64%"><stop offset="0%" stop-color="#7dffd0" stop-opacity=".95"/><stop offset="100%" stop-color="#7dffd0" stop-opacity="0"/></radialGradient>
+      <radialGradient id="g3" cx="80%" cy="82%" r="60%"><stop offset="0%" stop-color="#ffe66d" stop-opacity=".9"/><stop offset="100%" stop-color="#ffe66d" stop-opacity="0"/></radialGradient>
+      <pattern id="p" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M0 0H80M0 0V80" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/></pattern>
+    </defs>
+    <rect width="1600" height="1000" fill="url(#g1)"/>
+    <rect width="1600" height="1000" fill="url(#g2)"/>
+    <rect width="1600" height="1000" fill="url(#g3)"/>
+    <g fill="none" stroke="rgba(255,255,255,.38)" stroke-width="2.5">
+      <circle cx="330" cy="720" r="130"/><circle cx="1250" cy="260" r="190"/><circle cx="900" cy="820" r="80"/><circle cx="560" cy="300" r="60"/>
+    </g>
+    <rect width="1600" height="1000" fill="url(#p)"/>
+    <text x="800" y="530" font-family="sans-serif" font-size="130" font-weight="800" fill="rgba(255,255,255,.32)" text-anchor="middle" letter-spacing="10">LIQUID</text>
+  </svg>`);
+}
+function makeBwBgUrl() {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+    <defs><pattern id="checker" width="400" height="400" patternUnits="userSpaceOnUse"><rect width="400" height="400" fill="#f5f5f5"/><rect width="200" height="200" fill="#141414"/><rect x="200" y="200" width="200" height="200" fill="#141414"/></pattern></defs>
+    <rect width="1600" height="1000" fill="url(#checker)"/>
+    <text x="800" y="530" font-family="sans-serif" font-size="160" font-weight="900" fill="rgba(0,0,0,.9)" text-anchor="middle" letter-spacing="14">LIGHT</text>
+    <text x="800" y="700" font-family="sans-serif" font-size="160" font-weight="900" fill="rgba(255,255,255,.95)" text-anchor="middle" letter-spacing="14">DARK</text>
+  </svg>`);
+}
+
+const defaultBgUrl = makeBgUrl();
+const bwBgUrl = makeBwBgUrl();
+
+const bgDiv = document.getElementById('bgDiv');
+function setBgImage(url) { bgDiv.style.backgroundImage = `url("${url}")`; }
+setBgImage(defaultBgUrl);
+
+const bgCanvas = document.createElement('canvas');
+const bgCtx = bgCanvas.getContext('2d', { willReadFrequently: true });
+let bgData = null, bgW = 0, bgH = 0;
+
+const bgImage = new Image();
+bgImage.onload = () => { rebuildBgCanvas(); renderCurrentPage(); };
+bgImage.src = defaultBgUrl;
+
+function rebuildBgCanvas() {
+  bgW = window.innerWidth; bgH = window.innerHeight;
+  bgCanvas.width = bgW; bgCanvas.height = bgH;
+  const iw = bgImage.naturalWidth || 1600, ih = bgImage.naturalHeight || 1000;
+  const scale = Math.max(bgW / iw, bgH / ih);
+  const dw = iw * scale, dh = ih * scale;
+  const dx = (bgW - dw) / 2, dy = (bgH - dh) / 2;
+  bgCtx.clearRect(0, 0, bgW, bgH);
+  bgCtx.drawImage(bgImage, dx, dy, dw, dh);
+  bgData = bgCtx.getImageData(0, 0, bgW, bgH);
+}
+
+/* ================= 工具 ================= */
+function smoothstep(e0, e1, x) {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+function easeOutBack(t) {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function sampleBackgroundRGB(sx, sy) {
+  if (!bgData) return [0, 0, 0];
+  let sxxC = sx, syyC = sy;
+  if (sxxC < 0) sxxC = 0; else if (sxxC > bgW - 1) sxxC = bgW - 1;
+  if (syyC < 0) syyC = 0; else if (syyC > bgH - 1) syyC = bgH - 1;
+  const x0 = sxxC | 0, y0 = syyC | 0;
+  const x1 = x0 < bgW - 1 ? x0 + 1 : x0;
+  const y1 = y0 < bgH - 1 ? y0 + 1 : y0;
+  const fx = sxxC - x0, fy = syyC - y0;
+  const ifx = 1 - fx, ify = 1 - fy;
+  const i00 = (y0 * bgW + x0) << 2;
+  const i10 = (y0 * bgW + x1) << 2;
+  const i01 = (y1 * bgW + x0) << 2;
+  const i11 = (y1 * bgW + x1) << 2;
+  const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
+  const data = bgData.data;
+  return [
+    data[i00] * w00 + data[i10] * w10 + data[i01] * w01 + data[i11] * w11,
+    data[i00+1] * w00 + data[i10+1] * w10 + data[i01+1] * w01 + data[i11+1] * w11,
+    data[i00+2] * w00 + data[i10+2] * w10 + data[i01+2] * w01 + data[i11+2] * w11
+  ];
+}
+
+function sampleChannel(data, bw, bh, sx, sy, offset) {
+  if (sx < 0) sx = 0; else if (sx > bw - 1) sx = bw - 1;
+  if (sy < 0) sy = 0; else if (sy > bh - 1) sy = bh - 1;
+  const x0 = sx | 0, y0 = sy | 0;
+  const x1 = x0 < bw - 1 ? x0 + 1 : x0, y1 = y0 < bh - 1 ? y0 + 1 : y0;
+  const fx = sx - x0, fy = sy - y0, ifx = 1 - fx, ify = 1 - fy;
+  const i00 = (y0 * bw + x0) << 2, i10 = (y0 * bw + x1) << 2, i01 = (y1 * bw + x0) << 2, i11 = (y1 * bw + x1) << 2;
+  const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
+  return data[i00 + offset] * w00 + data[i10 + offset] * w10 + data[i01 + offset] * w01 + data[i11 + offset] * w11;
+}
+function boxBlurH(src, dst, w, h, r) {
+  const div = r * 2 + 1, w3 = w * 3;
+  for (let y = 0; y < h; y++) {
+    const row = y * w3;
+    let sr = 0, sg = 0, sb = 0;
+    for (let x = -r; x <= r; x++) {
+      const xx = x < 0 ? 0 : (x >= w ? w - 1 : x), i = row + xx * 3;
+      sr += src[i]; sg += src[i + 1]; sb += src[i + 2];
+    }
+    for (let x = 0; x < w; x++) {
+      const o = row + x * 3;
+      dst[o] = sr / div; dst[o + 1] = sg / div; dst[o + 2] = sb / div;
+      const xo = x - r < 0 ? 0 : (x - r >= w ? w - 1 : x - r);
+      const xi = x + r + 1 < 0 ? 0 : (x + r + 1 >= w ? w - 1 : x + r + 1);
+      const io = row + xo * 3, ii = row + xi * 3;
+      sr += src[ii] - src[io]; sg += src[ii + 1] - src[io + 1]; sb += src[ii + 2] - src[io + 2];
+    }
+  }
+}
+function boxBlurV(src, dst, w, h, r) {
+  const div = r * 2 + 1, w3 = w * 3;
+  for (let x = 0; x < w; x++) {
+    const col = x * 3;
+    let sr = 0, sg = 0, sb = 0;
+    for (let y = -r; y <= r; y++) {
+      const yy = y < 0 ? 0 : (y >= h ? h - 1 : y), i = col + yy * w3;
+      sr += src[i]; sg += src[i + 1]; sb += src[i + 2];
+    }
+    for (let y = 0; y < h; y++) {
+      const o = col + y * w3;
+      dst[o] = sr / div; dst[o + 1] = sg / div; dst[o + 2] = sb / div;
+      const yo = y - r < 0 ? 0 : (y - r >= h ? h - 1 : y - r);
+      const yi = y + r + 1 < 0 ? 0 : (y + r + 1 >= h ? h - 1 : y + r + 1);
+      const io = col + yo * w3, ii = col + yi * w3;
+      sr += src[ii] - src[io]; sg += src[ii + 1] - src[io + 1]; sb += src[ii + 2] - src[io + 2];
+    }
+  }
+}
+function gaussianBlurRGB(buf, w, h, radiusPx) {
+  const r = Math.max(1, Math.round(radiusPx * 0.6));
+  const tmp = new Uint8ClampedArray(buf.length);
+  for (let iter = 0; iter < 3; iter++) { boxBlurH(buf, tmp, w, h, r); boxBlurV(tmp, buf, w, h, r); }
+}
+function computeRectLuminance(sx, sy, w, h) {
+  if (!bgData) return 0.5;
+  const cx = sx + w / 2, cy = sy + h / 2, rx = w * 0.3, ry = h * 0.3;
+  const data = bgData.data, bw = bgW, bh = bgH;
+  let sum = 0, count = 0;
+  for (let dy = -ry; dy <= ry; dy += 4) {
+    for (let dx = -rx; dx <= rx; dx += 4) {
+      const sxp = cx + dx, syp = cy + dy;
+      if (sxp < 0 || syp < 0 || sxp >= bw || syp >= bh) continue;
+      const i = ((syp | 0) * bw + (sxp | 0)) << 2;
+      sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      count++;
+    }
+  }
+  return count ? (sum / count) / 255 : 0.5;
+}
+
+/* ================= 液态玻璃渲染 ================= */
+function renderGlass(canvas, sx, sy, w, h, radius, opt) {
+  if (!bgData || w < 1 || h < 1) return;
+  const dpr = (opt.dpr !== undefined) ? opt.dpr : getDPR();
+  const cw = Math.max(1, Math.round(w * dpr)), ch = Math.max(1, Math.round(h * dpr));
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw; canvas.height = ch;
+  }
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+
+  const ctx = canvas.getContext('2d');
+  const data = bgData.data, bw = bgW, bh = bgH;
+  const hw = w / 2, hh = h / 2, R = hh, aa = 0.5 / dpr;
+  const cxS = sx + hw, cyS = sy + hh;
+
+  const amp = opt.amp || 0, range = Math.max(0, Math.min(1, opt.range || 0));
+  const curve = opt.curve || 1, start = 1 - range;
+  const rangeOK = range > 1e-4 && Math.abs(amp) > 1e-4;
+  const disp = Math.max(0, Math.min(1, opt.dispersion || 0));
+  const dispOn = disp > 0.001 && rangeOK;
+  const ihw = hw - radius, ihh = hh - radius;
+  const sceneSampler = opt.sceneSampler || null;
+
+  const specInt = opt.specIntensity !== undefined ? Math.max(0, opt.specIntensity) : 0.7;
+  const specW = opt.specWidth !== undefined ? Math.max(0, opt.specWidth) : 1.5;
+  const specInt1 = specInt;
+  const specInt2 = specInt * SPEC_RATIO2;
+  const specOn = specInt > 0.001 && specW > 0.1;
+
+  const buf = getGlassBuf(cw, ch);
+  const colorBuf = buf.color;
+  let k = 0;
+  for (let j = 0; j < ch; j++) {
+    const ly = (j + 0.5) / dpr - hh;
+    for (let i = 0; i < cw; i++, k++) {
+      const lx = (i + 0.5) / dpr - hw;
+      let off = 0, nx = 0, ny = 0, sVal = 0;
+      if (rangeOK) {
+        const qx = Math.abs(lx) - ihw, qy = Math.abs(ly) - ihh;
+        const ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+        const sdf = Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - radius;
+        let t = 1 + sdf / R;
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+        if (t > start) {
+          let u = (t - start) / range;
+          if (u > 1) u = 1;
+          if (curve !== 1) u = Math.pow(u, curve);
+          const s = u * u * (3 - 2 * u);
+          sVal = s; off = -amp * s;
+        }
+        if (off !== 0) {
+          const ccx = Math.max(-ihw, Math.min(ihw, lx)), ccy = Math.max(-ihh, Math.min(ihh, ly));
+          const dx = lx - ccx, dy = ly - ccy;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 1e-6) { nx = dx / len; ny = dy / len; }
+        }
+      }
+      const baseSx = cxS + lx, baseSy = cyS + ly;
+      const sxx = baseSx + nx * off, syy = baseSy + ny * off;
+      let r, g, b;
+      if (sceneSampler) {
+        const rgb = sceneSampler(sxx, syy);
+        r = rgb[0]; g = rgb[1]; b = rgb[2];
+      } else {
+        let sxxC = sxx, syyC = syy;
+        if (sxxC < 0) sxxC = 0; else if (sxxC > bw - 1) sxxC = bw - 1;
+        if (syyC < 0) syyC = 0; else if (syyC > bh - 1) syyC = bh - 1;
+        const x0 = sxxC | 0, y0 = syyC | 0;
+        const x1 = x0 < bw - 1 ? x0 + 1 : x0, y1 = y0 < bh - 1 ? y0 + 1 : y0;
+        const fx = sxxC - x0, fy = syyC - y0, ifx = 1 - fx, ify = 1 - fy;
+        const i00 = (y0 * bw + x0) << 2, i10 = (y0 * bw + x1) << 2, i01 = (y1 * bw + x0) << 2, i11 = (y1 * bw + x1) << 2;
+        const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
+        r = data[i00] * w00 + data[i10] * w10 + data[i01] * w01 + data[i11] * w11;
+        g = data[i00 + 1] * w00 + data[i10 + 1] * w10 + data[i01 + 1] * w01 + data[i11 + 1] * w11;
+        b = data[i00 + 2] * w00 + data[i10 + 2] * w10 + data[i01 + 2] * w01 + data[i11 + 2] * w11;
+      }
+      if (dispOn && sVal > 0.001 && Math.abs(off) > 0.01) {
+        const kd = disp * sVal, offR = off * (1 - kd), offB = off * (1 + kd);
+        const sxxR = baseSx + nx * offR, syyR = baseSy + ny * offR;
+        const sxxB = baseSx + nx * offB, syyB = baseSy + ny * offB;
+        if (sceneSampler) {
+          const rgbR = sceneSampler(sxxR, syyR);
+          const rgbB = sceneSampler(sxxB, syyB);
+          r = rgbR[0];
+          b = rgbB[2];
+        } else {
+          r = sampleChannel(data, bw, bh, sxxR, syyR, 0);
+          b = sampleChannel(data, bw, bh, sxxB, syyB, 2);
+        }
+      }
+      const o3 = k * 3;
+      colorBuf[o3] = r; colorBuf[o3 + 1] = g; colorBuf[o3 + 2] = b;
+    }
+  }
+  const blurPx = Math.max(0, opt.blur || 0) * dpr;
+  if (blurPx > 0.5) gaussianBlurRGB(colorBuf, cw, ch, blurPx);
+
+  let imgData = buf.img;
+  if (!imgData) { imgData = ctx.createImageData(cw, ch); buf.img = imgData; }
+  const out = imgData.data;
+  const ta = opt.tintAmt || 0, inv = 1 - ta;
+  const tr = opt.tint ? opt.tint[0] : 0, tg = opt.tint ? opt.tint[1] : 0, tb = opt.tint ? opt.tint[2] : 0;
+  const edgeGlow = opt.edgeGlow || 0;
+  const autoDark = Math.max(0, Math.min(1, opt.autoDark || 0));
+  const darkMul = 1 - autoDark;
+
+  k = 0;
+  for (let j = 0; j < ch; j++) {
+    const ly = (j + 0.5) / dpr - hh;
+    for (let i = 0; i < cw; i++, k++) {
+      const lx = (i + 0.5) / dpr - hw, o = k << 2;
+      const qx = Math.abs(lx) - ihw, qy = Math.abs(ly) - ihh;
+      const ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+      const sdf = Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - radius;
+      const a = 1 - smoothstep(-aa, aa, sdf);
+      if (a < 0.004) { out[o + 3] = 0; continue; }
+      const o3 = k * 3;
+      let r = colorBuf[o3], g = colorBuf[o3 + 1], b = colorBuf[o3 + 2];
+      if (ta > 0.001) { r = r * inv + tr * ta; g = g * inv + tg * ta; b = b * inv + tb * ta; }
+      if (autoDark > 0.001) { r *= darkMul; g *= darkMul; b *= darkMul; }
+
+            // 菲涅尔边缘光（幂函数近似）
+      if (edgeGlow > 0 && sdf > -2.5 && sdf < 0) {
+        const dist = -sdf;
+        const t = 1 - dist / 2.5;
+        const F = Math.pow(t, 4);
+        const glow = F * edgeGlow * 3.5;
+        r += (255 - r) * glow; g += (255 - g) * glow; b += (255 - b) * glow;
+      }
+
+      if (specOn && sdf < 0) {
+        const dist = -sdf;
+        if (dist < specW) {
+          let nxs = 0, nys = 0;
+          if (qx > 0 && qy > 0) {
+            const len = Math.sqrt(qx * qx + qy * qy);
+            if (len > 1e-6) {
+              nxs = (lx >= 0 ? 1 : -1) * qx / len;
+              nys = (ly >= 0 ? 1 : -1) * qy / len;
+            }
+          } else if (qx > 0) {
+            nxs = lx >= 0 ? 1 : -1;
+          } else if (qy > 0) {
+            nys = ly >= 0 ? 1 : -1;
+          }
+          if (nxs !== 0 || nys !== 0) {
+            const rimT = 1 - smoothstep(0, specW, dist);
+            const d1 = nxs * SPEC_L1X + nys * SPEC_L1Y;
+            const d2 = nxs * SPEC_L2X + nys * SPEC_L2Y;
+            const p1 = d1 > 0 ? d1 : 0;
+            const p2 = d2 > 0 ? d2 : 0;
+            const s1 = p1 * p1 * p1 * specInt1;
+            const s2 = p2 * p2 * p2 * specInt2;
+            const spec = (s1 + s2) * rimT;
+            if (spec > 0.001) {
+              r += (255 - r) * spec; g += (255 - g) * spec; b += (255 - b) * spec;
+            }
+          }
+        }
+      }
+
+      out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = a * 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function renderGlassEl(canvas, rect, radius, optBase) {
+  if (rect.width < 1 || rect.height < 1) return;
+  const lum = computeRectLuminance(rect.left, rect.top, rect.width, rect.height);
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  renderGlass(canvas, rect.left, rect.top, rect.width, rect.height, radius, { ...optBase, autoDark });
+}
+
+function renderBackButton(btn) {
+  const canvas = btn.querySelector('.back-glass');
+  if (!canvas) return;
+  const rect = btn.getBoundingClientRect();
+  const radius = rect.width / 2;
+  renderGlassEl(canvas, rect, radius, { amp: 3, range: 1, curve: 2, blur: 5, tint: [255, 255, 255], tintAmt: 0.05, edgeGlow: 0.04 });
+}
+
+function renderRoundBtn(btn) {
+  if (!btn) return;
+  const canvas = btn.querySelector('.round-glass');
+  if (!canvas) return;
+  const rect = btn.getBoundingClientRect();
+  if (rect.width < 1) return;
+  const radius = rect.width / 2;
+  const lum = computeRectLuminance(rect.left, rect.top, rect.width, rect.height);
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  renderGlass(canvas, rect.left, rect.top, rect.width, rect.height, radius, {
+    amp: 4, range: 1, curve: 2, blur: 4,
+    tint: [255, 255, 255], tintAmt: 0.06, edgeGlow: 0.04, autoDark
+  });
+}
+
+function renderHome() {
+  if (currentPage !== 'home' || !bgData) return;
+  document.querySelectorAll('.home-card').forEach(card => {
+    const canvas = card.querySelector('canvas');
+    renderGlassEl(canvas, card.getBoundingClientRect(), 20, { amp: 6, range: 1, curve: 2, blur: 7, tint: [255, 255, 255], tintAmt: 0.08, edgeGlow: 0.04 });
+  });
+  renderRoundBtn(document.getElementById('settingsBtn'));
+}
+
+function renderSettings() {
+  if (currentPage !== 'settings' || !bgData) return;
+  const card = document.getElementById('settingsCard');
+  const canvas = document.getElementById('settingsCanvas');
+  renderGlassEl(canvas, card.getBoundingClientRect(), 20, { amp: 8, range: 1, curve: 2.2, blur: 8, tint: [255, 255, 255], tintAmt: 0.06, edgeGlow: 0.04 });
+  renderBackButton(document.getElementById('backFromSettings'));
+}
+
+const capsulePage = document.getElementById('pageCapsule');
+const lensEl = document.getElementById('lens');
+const lensCanvas = document.getElementById('lensCanvas');
+const sheet = document.getElementById('sheet');
+const sheetCanvas = document.getElementById('sheetCanvas');
+const capsuleParamBtn = document.getElementById('capsuleParamBtn');
+
+let baseX = 0, baseY = 0, x = 0, y = 0;
+let dragging = false, startX = 0, startY = 0, originX = 0, originY = 0;
+
+function layoutCapsule() {
+  baseX = (window.innerWidth - W) / 2;
+  baseY = (window.innerHeight - H) / 2 - 60;
+  clampCapsule();
+  applyCapsulePosition();
+}
+function clampCapsule() {
+  const m = 8;
+  x = Math.min(window.innerWidth - m - W - baseX, Math.max(m - baseX, x));
+  y = Math.min(window.innerHeight - m - H - baseY, Math.max(m - baseY, y));
+}
+function applyCapsulePosition() {
+  lensEl.style.transform = `translate3d(${baseX + x}px, ${baseY + y}px, 0)`;
+}
+
+let tintEnabled = false, tintRgb = [59, 130, 246], tintAmtVal = 0.35;
+function hexToRgb(hex) { const h = hex.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+function syncAccentColor() { document.documentElement.style.setProperty('--accent', tintEnabled ? tintColor.value : '#3b82f6'); }
+
+let rafPendingCapsule = false;
+function scheduleRenderLens() {
+  if (rafPendingCapsule) return;
+  rafPendingCapsule = true;
+  const tick = (now) => {
+    if (now - lastCapsuleRender < frameInterval() - 1) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    rafPendingCapsule = false;
+    lastCapsuleRender = now;
+    renderLens();
+  };
+  requestAnimationFrame(tick);
+}
+
+function renderLens() {
+  if (!bgData) return;
+  const lum = computeRectLuminance(baseX + x, baseY + y, W, H);
+  const textIsDark = lum > 0.5;
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  renderGlass(lensCanvas, baseX + x, baseY + y, W, H, H / 2, {
+    amp: params.amp, range: params.range, curve: params.curve, blur: params.blur,
+    dispersion: params.dispersion / 10 * DISP_MAX,
+    tint: tintEnabled ? tintRgb : null, tintAmt: tintEnabled ? tintAmtVal : 0,
+    edgeGlow: 0.05, autoDark,
+    specIntensity: params.specIntensity, specWidth: params.specWidth
+  });
+  drawLensText(lensCanvas, lensText, textIsDark);
+}
+
+function drawLensText(canvas, text, isDark) {
+  if (!text) return;
+  const dpr = getDPR();
+  const ctx = canvas.getContext('2d');
+  const cw = canvas.width, ch = canvas.height;
+  let fontSize = 20;
+  let fontStr = `700 ${fontSize * dpr}px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
+  ctx.font = fontStr;
+  const maxW = cw * 0.8;
+  const metrics = ctx.measureText(text);
+  if (metrics.width > maxW) {
+    fontSize = Math.max(9, fontSize * maxW / metrics.width);
+    fontStr = `700 ${fontSize * dpr}px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
+    ctx.font = fontStr;
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 5 * dpr; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  ctx.fillStyle = isDark ? '#111111' : '#ffffff';
+  ctx.fillText(text, cw / 2, ch / 2 + dpr);
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+}
+
+function paintSheetGlassFor(sheetEl, canvasEl, forcedH) {
+  if (!bgData || !canvasEl || !sheetEl) return;
+  const right = 24, top = 24;
+  const w = _panelWidth();
+  const sx = window.innerWidth - right - w;
+  const sy = top;
+  /* 优先用调用方算好的目标高度，避免同步阶段读到收起态旧的 44px */
+  const h = forcedH || sheetEl.offsetHeight;
+  if (h < 1) return;
+  const lum = computeRectLuminance(sx, sy, w, h);
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  renderGlass(canvasEl, sx, sy, w, h, 20, {
+    amp: 8, range: 1, curve: 2.4, blur: 6,
+    tint: [255, 255, 255], tintAmt: 0.06, edgeGlow: 0.04, autoDark
+  });
+}
+
+/* 纯测量：按当前 active pane 内容算出应有的面板高度（不改动样式） */
+function measureSheetHeight(sheetEl) {
+  if (!sheetEl) return 0;
+  const inner = sheetEl.querySelector('.sheet-inner');
+  const tabs = sheetEl.querySelector('.sheet-tabs');
+  const panes = sheetEl.querySelector('.sheet-panes');
+  const activePane = sheetEl.querySelector('.pane.active');
+  if (!inner || !activePane) return 0;
+
+  const innerCS = getComputedStyle(inner);
+  const padTop = parseFloat(innerCS.paddingTop) || 0;
+  const padBottom = parseFloat(innerCS.paddingBottom) || 0;
+  const tabsH = tabs ? tabs.offsetHeight : 0;
+  const tabsMB = tabs ? (parseFloat(getComputedStyle(tabs).marginBottom) || 0) : 0;
+
+  let panesPad = 0;
+  if (panes) {
+    const pcs = getComputedStyle(panes);
+    panesPad = (parseFloat(pcs.paddingTop) || 0) + (parseFloat(pcs.paddingBottom) || 0);
+  }
+
+  const paneH = activePane.scrollHeight;
+  let h = Math.round(padTop + tabsH + tabsMB + paneH + panesPad + padBottom);
+  const maxH = Math.min(window.innerHeight - 100, 640);
+  const minH = 64;
+  return Math.max(minH, Math.min(h, maxH));
+}
+
+function fitSheetHeight(sheetEl, canvasEl) {
+  if (!sheetEl) return 0;
+  /* 同步宽度，保证 resize 后面板跟随视口（收起源几何由形变引擎接管） */
+  sheetEl.style.width = _panelWidth() + 'px';
+  const h = measureSheetHeight(sheetEl);
+  /* 已展开：tab 切换/resize 时高度平滑过渡（短↔长双向）；尚未展开：直接落到目标高度 */
+  if (sheetEl.classList.contains('open')) {
+    tweenSheetHeight(sheetEl, canvasEl, h);
+  } else {
+    sheetEl.style.height = h + 'px';
+    if (canvasEl) paintSheetGlassFor(sheetEl, canvasEl, h);
+  }
+  return h;
+}
+
+function renderSheet() {
+  paintSheetGlassFor(sheet, sheetCanvas);
+}
+
+/* ===== sheet 弹性形变：从母按钮那颗小圆长出 / 缩回，带回弹果冻感 =====
+   几何与 opacity 全部由 rAF 插值，CSS 不再管过渡，保证长↔短、开↔关双向一致 */
+const sheetRafMap = new WeakMap();
+function _stopSheetAnim(sheet) {
+  const r = sheetRafMap.get(sheet);
+  if (r) { cancelAnimationFrame(r); sheetRafMap.delete(sheet); }
+}
+function _applySheet(sheet, g) {
+  sheet.style.top = g.top + 'px';
+  sheet.style.right = g.right + 'px';
+  sheet.style.width = g.width + 'px';
+  sheet.style.height = g.height + 'px';
+  sheet.style.borderRadius = g.radius + 'px';
+  sheet.style.opacity = g.opacity;
+}
+function _panelWidth() { return Math.min(320, window.innerWidth - 48); }
+function easeInCubic(t) { return t * t * t; }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/* 打开：从 44px 母按钮圆平滑膨胀到面板（无过冲）；母按钮隐藏，二者不共存。
+   面板右上角与母按钮同点(top24/right24)。等两帧布局稳定后复测真实内容高作为动画终点，
+   避免同步帧测偏大导致二次打开终态过高、底部留白 */
+function openSheetMorph(sheet, canvas, fit, btn) {
+  _stopSheetAnim(sheet);
+  const FROM = { top: 24, right: 24, width: 44, height: 44, radius: 50, opacity: 0 };
+  _applySheet(sheet, FROM);
+  sheet.classList.add('open');
+  if (btn) btn.classList.add('dim');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    /* 测高前先把宽度摆正到面板真实宽度：若停在 44px 圆窄宽里，pane 内容会异常换行、
+       scrollHeight 被撑高，导致终态过长 */
+    sheet.style.width = _panelWidth() + 'px';
+    let h = measureSheetHeight(sheet);
+    if (!h && fit) h = fit(sheet, canvas) || 150;
+    h = h || 150;
+    if (canvas) paintSheetGlassFor(sheet, canvas, h);
+    _runOpenAnim(sheet, h);
+  }));
+}
+function _runOpenAnim(sheet, h) {
+  const from = { top: 24, right: 24, width: 44, height: 44, radius: 50, opacity: 0 };
+  const to = { top: 24, right: 24, width: _panelWidth(), height: h, radius: 20, opacity: 1 };
+  const DUR = 320, t0 = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / DUR);
+    const e = easeOutCubic(t);
+    _applySheet(sheet, {
+      top: lerp(from.top, to.top, e),
+      right: lerp(from.right, to.right, e),
+      width: lerp(from.width, to.width, e),
+      height: lerp(from.height, to.height, e),
+      radius: lerp(from.radius, to.radius, e),
+      opacity: e
+    });
+    if (t < 1) sheetRafMap.set(sheet, requestAnimationFrame(tick));
+    else { _applySheet(sheet, to); sheetRafMap.delete(sheet); }
+  }
+  sheetRafMap.set(sheet, requestAnimationFrame(tick));
+}
+
+/* 关闭：从面板平滑收拢回母按钮圆，结束后恢复母按钮 */
+function closeSheetMorph(sheet, btn) {
+  _stopSheetAnim(sheet);
+  const cs = getComputedStyle(sheet);
+  const from = {
+    top: parseFloat(cs.top), right: parseFloat(cs.right),
+    width: parseFloat(cs.width), height: parseFloat(cs.height),
+    radius: 20, opacity: 1
+  };
+  const to = { top: 24, right: 24, width: 44, height: 44, radius: 50, opacity: 0 };
+  sheet.classList.remove('open');
+  const DUR = 240, t0 = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / DUR);
+    const e = easeInCubic(t);
+    _applySheet(sheet, {
+      top: lerp(from.top, to.top, e),
+      right: lerp(from.right, to.right, e),
+      width: lerp(from.width, to.width, e),
+      height: lerp(from.height, to.height, e),
+      radius: lerp(from.radius, to.radius, e),
+      opacity: 1 - e
+    });
+    if (t < 1) sheetRafMap.set(sheet, requestAnimationFrame(tick));
+    else {
+      _applySheet(sheet, to); sheetRafMap.delete(sheet);
+      if (btn) btn.classList.remove('dim');
+    }
+  }
+  sheetRafMap.set(sheet, requestAnimationFrame(tick));
+}
+
+/* tab 切换：已展开时把高度平滑 tween 到目标值（短↔长双向），同步重画玻璃背板 */
+function tweenSheetHeight(sheetEl, canvasEl, h) {
+  const start = parseFloat(sheetEl.style.height) || h;
+  const t0 = performance.now(), DUR = 220;
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / DUR);
+    const e = easeOutCubic(t);
+    const cur = lerp(start, h, e);
+    sheetEl.style.height = cur + 'px';
+    if (canvasEl) paintSheetGlassFor(sheetEl, canvasEl, cur);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* 通用：为参数 sheet 绘制玻璃背板（右上角同款浮层） */
+function paintSheetGlass(canvas, heightPx) {
+  if (!bgData || !canvas) return;
+  const right = 24, top = 24;
+  const w = _panelWidth();
+  const sx = window.innerWidth - right - w;
+  const sy = top;
+  const lum = computeRectLuminance(sx, sy, w, heightPx);
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  renderGlass(canvas, sx, sy, w, heightPx, 20, {
+    amp: 8, range: 1, curve: 2.4, blur: 6,
+    tint: [255, 255, 255], tintAmt: 0.06, edgeGlow: 0.04, autoDark
+  });
+}
+
+function renderCapsuleAll() {
+  if (currentPage !== 'capsule' || !bgData) return;
+  renderLens();
+  renderSheet();
+  renderBackButton(document.getElementById('backFromCapsule'));
+  renderRoundBtn(capsuleParamBtn);
+}
+
+function onLensDown(e) {
+  dragging = true; lensEl.classList.add('dragging');
+  lensEl.setPointerCapture(e.pointerId);
+  startX = e.clientX; startY = e.clientY; originX = x; originY = y;
+}
+function onLensMove(e) {
+  if (!dragging) return;
+  x = originX + (e.clientX - startX); y = originY + (e.clientY - startY);
+  clampCapsule(); applyCapsulePosition(); scheduleRenderLens();
+}
+function onLensUp(e) {
+  if (!dragging) return;
+  dragging = false; lensEl.classList.remove('dragging');
+  if (lensEl.hasPointerCapture(e.pointerId)) lensEl.releasePointerCapture(e.pointerId);
+}
+lensEl.addEventListener('pointerdown', onLensDown);
+lensEl.addEventListener('pointermove', onLensMove);
+lensEl.addEventListener('pointerup', onLensUp);
+lensEl.addEventListener('pointercancel', onLensUp);
+
+const ampInput = document.getElementById('amp'), rangeInput = document.getElementById('rangeSlider');
+const curveInput = document.getElementById('curve'), blurInput = document.getElementById('blur');
+const dispInput = document.getElementById('dispersion');
+const specIntensityInput = document.getElementById('specIntensity'), specWidthInput = document.getElementById('specWidth');
+const vAmp = document.getElementById('vAmp'), vRange = document.getElementById('vRange');
+const vCurve = document.getElementById('vCurve'), vBlur = document.getElementById('vBlur'), vDisp = document.getElementById('vDisp');
+const vSpec = document.getElementById('vSpec'), vSpecW = document.getElementById('vSpecW');
+
+/* 胶囊组件大小：整体缩放凸透镜宽高并重定位 */
+const lensSizeInput = document.getElementById('lensSize');
+const vLensSize = document.getElementById('vLensSize');
+function applyLensSize() {
+  const s = +lensSizeInput.value;
+  W = LENS_BASE_W * s;
+  H = LENS_BASE_H * s;
+  vLensSize.textContent = s.toFixed(2) + '×';
+  lensEl.style.width = W + 'px';
+  lensEl.style.height = H + 'px';
+  layoutCapsule();
+  scheduleRenderLens();
+}
+lensSizeInput.addEventListener('input', applyLensSize);
+
+function updateFromSliders() {
+  params.amp = +ampInput.value; params.range = +rangeInput.value;
+  params.curve = +curveInput.value; params.blur = +blurInput.value;
+  params.dispersion = +dispInput.value;
+  params.specIntensity = +specIntensityInput.value; params.specWidth = +specWidthInput.value;
+  vAmp.textContent = params.amp; vRange.textContent = params.range.toFixed(2);
+  vCurve.textContent = params.curve.toFixed(2); vBlur.textContent = params.blur.toFixed(1);
+  vDisp.textContent = params.dispersion.toFixed(1);
+  vSpec.textContent = params.specIntensity.toFixed(2); vSpecW.textContent = params.specWidth.toFixed(1);
+  scheduleRenderLens();
+}
+ampInput.addEventListener('input', updateFromSliders);
+rangeInput.addEventListener('input', updateFromSliders);
+curveInput.addEventListener('input', updateFromSliders);
+blurInput.addEventListener('input', updateFromSliders);
+dispInput.addEventListener('input', updateFromSliders);
+specIntensityInput.addEventListener('input', updateFromSliders);
+specWidthInput.addEventListener('input', updateFromSliders);
+
+const tintOn = document.getElementById('tintOn'), tintColor = document.getElementById('tintColor'), tintAmt = document.getElementById('tintAmt');
+const vTintColor = document.getElementById('vTintColor'), vTintAmt = document.getElementById('vTintAmt');
+function updateTint() {
+  tintEnabled = tintOn.checked; tintRgb = hexToRgb(tintColor.value); tintAmtVal = +tintAmt.value;
+  vTintColor.textContent = tintColor.value; vTintAmt.textContent = tintAmtVal.toFixed(2);
+  syncAccentColor(); scheduleRenderLens();
+}
+tintOn.addEventListener('change', updateTint);
+tintColor.addEventListener('input', updateTint);
+tintAmt.addEventListener('input', updateTint);
+
+let capsuleActiveTab = 'lens', sheetOpen = false;
+function setCapsuleTab(tab) {
+  capsuleActiveTab = tab;
+  document.querySelectorAll('#sheet .sheet-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('#sheet .pane').forEach(el => el.classList.toggle('active', el.dataset.pane === tab));
+  fitSheetHeight(sheet, sheetCanvas);
+}
+function openCapsuleSheet() {
+    sheetOpen = true;
+    openSheetMorph(sheet, sheetCanvas, fitSheetHeight, capsuleParamBtn);
+}
+function closeCapsuleSheet() {
+    sheetOpen = false;
+    closeSheetMorph(sheet, capsuleParamBtn);
+}
+function toggleCapsuleSheet() { sheetOpen ? closeCapsuleSheet() : openCapsuleSheet(); }
+
+capsuleParamBtn.addEventListener('click', toggleCapsuleSheet);
+document.querySelectorAll('#sheet .sheet-tab').forEach(btn => {
+  btn.addEventListener('click', () => setCapsuleTab(btn.dataset.tab));
+});
+capsulePage.addEventListener('pointerdown', (e) => {
+  if (!sheetOpen) return;
+  if (sheet.contains(e.target)) return;
+  if (capsuleParamBtn.contains(e.target)) return;
+  closeCapsuleSheet();
+});
+
+const textInput = document.getElementById('lensTextInput');
+textInput.addEventListener('input', () => { lensText = textInput.value; scheduleRenderLens(); });
+
+document.getElementById('resetAllBtn').addEventListener('click', () => {
+  ampInput.value = 20; params.amp = 20;
+  rangeInput.value = 1; params.range = 1;
+  curveInput.value = 3; params.curve = 3;
+  blurInput.value = 0; params.blur = 0;
+  dispInput.value = 0; params.dispersion = 0;
+  specIntensityInput.value = 1; params.specIntensity = 1;
+  specWidthInput.value = 1.5; params.specWidth = 1.5;
+  lensSizeInput.value = 1; applyLensSize();
+  vAmp.textContent = '20'; vRange.textContent = '1.00'; vCurve.textContent = '3.00';
+  vBlur.textContent = '0.0'; vDisp.textContent = '0.0';
+  vSpec.textContent = '1.00'; vSpecW.textContent = '1.5';
+  tintOn.checked = false; tintColor.value = '#3b82f6'; tintAmt.value = 0.35; updateTint();
+  textInput.value = ''; lensText = '';
+  x = 0; y = 0; clampCapsule(); applyCapsulePosition();
+  scheduleRenderLens();
+});
+
+const bgUploadBtn = document.getElementById('bgUploadBtn'), bgFile = document.getElementById('bgFile');
+bgUploadBtn.addEventListener('click', () => bgFile.click());
+bgFile.addEventListener('change', () => {
+  const file = bgFile.files && bgFile.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const url = e.target.result;
+    setBgImage(url);
+    bgImage.src = url;
+    bgFile.value = '';
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('bgResetBtn').addEventListener('click', () => { setBgImage(defaultBgUrl); bgImage.src = defaultBgUrl; });
+document.getElementById('bwBgBtn').addEventListener('click', () => { setBgImage(bwBgUrl); bgImage.src = bwBgUrl; });
+
+const textPage = document.getElementById('pageText');
+const textCanvas = document.getElementById('textGlassCanvas');
+const textSheet = document.getElementById('textSheet');
+const textSheetCanvas = document.getElementById('textSheetCanvas');
+const textGlassInput = document.getElementById('textGlassInput');
+const textParamBtn = document.getElementById('textParamBtn');
+
+const textParams = { amp: 50, range: 1, curve: 3, blur: 0, dispersion: 0, fontSize: 160, fontWeight: 700, cornerRound: 0, specIntensity: 1, specWidth: 1.5 };
+let textTintEnabled = false, textTintRgb = [59, 130, 246], textTintAmt = 0.35;
+
+let textData = null;
+let textDragX = 0, textDragY = 0;
+
+function distanceTransform(inside, w, h) {
+  const INF = 1e9;
+  const d = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) d[i] = inside[i] ? INF : 0;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (d[i] === 0) continue;
+      let m = d[i];
+      if (y > 0) m = Math.min(m, d[i - w] + 1);
+      if (x > 0) m = Math.min(m, d[i - 1] + 1);
+      if (y > 0 && x > 0) m = Math.min(m, d[i - w - 1] + Math.SQRT2);
+      if (y > 0 && x < w - 1) m = Math.min(m, d[i - w + 1] + Math.SQRT2);
+      d[i] = m;
+    }
+  }
+  for (let y = h - 1; y >= 0; y--) {
+    for (let x = w - 1; x >= 0; x--) {
+      const i = y * w + x;
+      if (d[i] === 0) continue;
+      let m = d[i];
+      if (y < h - 1) m = Math.min(m, d[i + w] + 1);
+      if (x < w - 1) m = Math.min(m, d[i + 1] + 1);
+      if (y < h - 1 && x < w - 1) m = Math.min(m, d[i + w + 1] + Math.SQRT2);
+      if (y < h - 1 && x > 0) m = Math.min(m, d[i + w - 1] + Math.SQRT2);
+      d[i] = m;
+    }
+  }
+  return d;
+}
+
+function boxBlurFloatH(src, dst, w, h, r) {
+  const div = r * 2 + 1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let sum = 0;
+    for (let x = -r; x <= r; x++) {
+      const xx = x < 0 ? 0 : (x >= w ? w - 1 : x);
+      sum += src[row + xx];
+    }
+    for (let x = 0; x < w; x++) {
+      dst[row + x] = sum / div;
+      const xo = x - r < 0 ? 0 : (x - r >= w ? w - 1 : x - r);
+      const xi = x + r + 1 < 0 ? 0 : (x + r + 1 >= w ? w - 1 : x + r + 1);
+      sum += src[row + xi] - src[row + xo];
+    }
+  }
+}
+function boxBlurFloatV(src, dst, w, h, r) {
+  const div = r * 2 + 1;
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) {
+      const yy = y < 0 ? 0 : (y >= h ? h - 1 : y);
+      sum += src[yy * w + x];
+    }
+    for (let y = 0; y < h; y++) {
+      dst[y * w + x] = sum / div;
+      const yo = y - r < 0 ? 0 : (y - r >= h ? h - 1 : y - r);
+      const yi = y + r + 1 < 0 ? 0 : (y + r + 1 >= h ? h - 1 : y + r + 1);
+      sum += src[yi * w + x] - src[yo * w + x];
+    }
+  }
+}
+function blurFloat(buf, w, h, r) {
+  if (r < 0.5) return buf;
+  const ri = Math.max(1, Math.round(r));
+  const tmp = new Float32Array(buf.length);
+  for (let it = 0; it < 3; it++) {
+    boxBlurFloatH(buf, tmp, w, h, ri);
+    boxBlurFloatV(tmp, buf, w, h, ri);
+  }
+  return buf;
+}
+
+function buildSDF(inside, w, h) {
+  const dIn = distanceTransform(inside, w, h);
+  const inv = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) inv[i] = inside[i] ? 0 : 1;
+  const dOut = distanceTransform(inv, w, h);
+  const sdf = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) sdf[i] = inside[i] ? dIn[i] : -dOut[i];
+  return sdf;
+}
+
+function roundInside(inside, w, h, r) {
+  if (r < 0.5) return inside;
+  const sdf = buildSDF(inside, w, h);
+  blurFloat(sdf, w, h, r);
+  const out = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) out[i] = sdf[i] > 0 ? 1 : 0;
+  return out;
+}
+
+function sampleDist(td, x, y) {
+  const w = td.cw, h = td.ch;
+  if (x < 0 || y < 0 || x >= w - 1 || y >= h - 1) return 0;
+  const x0 = x | 0, y0 = y | 0;
+  const fx = x - x0, fy = y - y0;
+  const i00 = y0 * w + x0;
+  return td.distField[i00] * (1 - fx) * (1 - fy) +
+         td.distField[i00 + 1] * fx * (1 - fy) +
+         td.distField[i00 + w] * (1 - fx) * fy +
+         td.distField[i00 + w + 1] * fx * fy;
+}
+
+function sampleInside(td, x, y) {
+  const w = td.cw, h = td.ch;
+  if (x < 0 || y < 0 || x >= w - 1 || y >= h - 1) return 0;
+  const x0 = x | 0, y0 = y | 0;
+  const fx = x - x0, fy = y - y0;
+  const i00 = y0 * w + x0;
+  return td.inside[i00] * (1 - fx) * (1 - fy) +
+         td.inside[i00 + 1] * fx * (1 - fy) +
+         td.inside[i00 + w] * (1 - fx) * fy +
+         td.inside[i00 + w + 1] * fx * fy;
+}
+
+function updateTextBBox() {
+  if (!textData) return;
+  textData.bboxLeft = (window.innerWidth - textData.cssW) / 2 + textDragX;
+  textData.bboxTop = (window.innerHeight - textData.cssH) / 2 - 60 + textDragY;
+}
+
+function buildTextData(text) {
+  if (!text || !text.trim()) { textData = null; return; }
+  const TD = TEXT_DPR;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const fw = textParams.fontWeight;
+  const fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  let fontSize = textParams.fontSize * TD;
+  let fontStr = `${fw} ${fontSize}px ${fontFamily}`;
+  ctx.font = fontStr;
+  let metrics = ctx.measureText(text);
+  let textW = metrics.width;
+  let textH = fontSize * 1.4;
+
+  const maxCssW = window.innerWidth * 0.75;
+  const maxCssH = window.innerHeight * 0.32;
+  if (textW / TD > maxCssW) {
+    fontSize = fontSize * (maxCssW * TD) / textW;
+    fontStr = `${fw} ${fontSize}px ${fontFamily}`;
+    ctx.font = fontStr;
+    metrics = ctx.measureText(text);
+    textW = metrics.width;
+    textH = fontSize * 1.4;
+  }
+  if (textH / TD > maxCssH) {
+    fontSize = fontSize * (maxCssH * TD) / textH;
+    fontStr = `${fw} ${fontSize}px ${fontFamily}`;
+    ctx.font = fontStr;
+    metrics = ctx.measureText(text);
+    textW = metrics.width;
+    textH = fontSize * 1.4;
+  }
+
+  const pad = fontSize * 0.15;
+  const cw = Math.ceil(textW + pad * 2);
+  const ch = Math.ceil(textH + pad * 2);
+  canvas.width = cw; canvas.height = ch;
+
+  ctx.font = fontStr;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, cw / 2, ch / 2);
+
+  const imgData = ctx.getImageData(0, 0, cw, ch);
+  const alpha = imgData.data;
+  let inside = new Uint8Array(cw * ch);
+  for (let i = 0; i < cw * ch; i++) inside[i] = alpha[i * 4 + 3] > 128 ? 1 : 0;
+
+  const roundPx = textParams.cornerRound * TD;
+  if (roundPx > 0.5) inside = roundInside(inside, cw, ch, roundPx);
+
+  const distField = distanceTransform(inside, cw, ch);
+
+  let maxD = 0;
+  for (let i = 0; i < cw * ch; i++) if (distField[i] > maxD) maxD = distField[i];
+  if (maxD < 1) maxD = 1;
+
+  const cssW = cw / TD;
+  const cssH = ch / TD;
+
+  textData = { cw, ch, TD, distField, maxD, inside, cssW, cssH, bboxLeft: 0, bboxTop: 0 };
+  updateTextBBox();
+}
+
+function layoutTextGlass() {
+  buildTextData(textGlassInput.value);
+}
+
+let textRafPending = false;
+function scheduleRenderText() {
+  if (textRafPending) return;
+  textRafPending = true;
+  const tick = (now) => {
+    if (now - lastTextRender < frameInterval() - 1) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    textRafPending = false;
+    lastTextRender = now;
+    renderTextGlass();
+  };
+  requestAnimationFrame(tick);
+}
+
+let textRebuildTimer = null;
+function scheduleTextRebuild() {
+  clearTimeout(textRebuildTimer);
+  textRebuildTimer = setTimeout(() => {
+    layoutTextGlass();
+    scheduleRenderText();
+  }, 60);
+}
+
+function renderTextGlass() {
+  if (!bgData || !textData) {
+    if (textCanvas) { textCanvas.width = 0; textCanvas.height = 0; }
+    return;
+  }
+  const td = textData;
+  const renderDpr = getDPR();
+  const cw = Math.max(1, Math.round(td.cssW * renderDpr));
+  const ch = Math.max(1, Math.round(td.cssH * renderDpr));
+
+  if (textCanvas.width !== cw || textCanvas.height !== ch) {
+    textCanvas.width = cw; textCanvas.height = ch;
+    textCanvas.style.width = td.cssW + 'px';
+    textCanvas.style.height = td.cssH + 'px';
+  }
+  textCanvas.style.left = td.bboxLeft + 'px';
+  textCanvas.style.top = td.bboxTop + 'px';
+
+  const ctx = textCanvas.getContext('2d');
+  const data = bgData.data, bw = bgW, bh = bgH;
+  const dfScale = td.TD / renderDpr;
+
+  const ampPct = textParams.amp;
+  const range = Math.max(0.02, Math.min(1, textParams.range));
+  const curve = textParams.curve || 1;
+  const blur = textParams.blur;
+  const disp = Math.max(0, textParams.dispersion / 10 * DISP_MAX);
+  const ta = textTintEnabled ? textTintAmt : 0;
+  const tr = textTintRgb[0], tg = textTintRgb[1], tb = textTintRgb[2];
+  const inv = 1 - ta;
+  const edgeGlow = 0.06;
+
+  const specInt = Math.max(0, textParams.specIntensity);
+  const specW = Math.max(0, textParams.specWidth);
+  const specInt1 = specInt;
+  const specInt2 = specInt * SPEC_RATIO2;
+  const specOn = specInt > 0.001 && specW > 0.1;
+
+  const lum = computeRectLuminance(td.bboxLeft, td.bboxTop, td.cssW, td.cssH);
+  const autoDark = smoothstep(LUM_LIGHT, LUM_DARK, lum) * DARK_OVERLAY_MAX;
+  const darkMul = 1 - autoDark;
+
+  const maxDCss = td.maxD / td.TD;
+  const ampPx = maxDCss * (ampPct / 100);
+  const rangeOK = ampPx > 0.05;
+
+  const skipOutside = blur < 0.01;
+  const buf = getGlassBuf(cw, ch);
+  const colorBuf = buf.color;
+  let k = 0;
+
+  for (let j = 0; j < ch; j++) {
+    const screenY = td.bboxTop + (j + 0.5) / renderDpr;
+    for (let i = 0; i < cw; i++, k++) {
+      const screenX = td.bboxLeft + (i + 0.5) / renderDpr;
+      const dfx = (i + 0.5) * dfScale;
+      const dfy = (j + 0.5) * dfScale;
+      const d = sampleDist(td, dfx, dfy);
+      const dCss = d / td.TD;
+
+      if (skipOutside && d <= 0) continue;
+
+      let off = 0, gx = 0, gy = 0, sVal = 0;
+      if (dCss > 0.3 && rangeOK) {
+        const dn = d / td.maxD;
+        let u = 1 - dn / range;
+        if (u > 0) {
+          if (u > 1) u = 1;
+          if (curve !== 1) u = Math.pow(u, curve);
+          const s = u * u * (3 - 2 * u);
+          sVal = s;
+          off = -ampPx * s;
+          const dL = sampleDist(td, dfx - 1, dfy);
+          const dR = sampleDist(td, dfx + 1, dfy);
+          const dU = sampleDist(td, dfx, dfy - 1);
+          const dD = sampleDist(td, dfx, dfy + 1);
+          let tgx = (dR - dL) * 0.5;
+          let tgy = (dD - dU) * 0.5;
+          const glen = Math.sqrt(tgx * tgx + tgy * tgy);
+          if (glen > 1e-6) { gx = tgx / glen; gy = tgy / glen; }
+        }
+      }
+
+      const sxx = screenX + gx * off;
+      const syy = screenY + gy * off;
+      let sxxC = sxx, syyC = syy;
+      if (sxxC < 0) sxxC = 0; else if (sxxC > bw - 1) sxxC = bw - 1;
+      if (syyC < 0) syyC = 0; else if (syyC > bh - 1) syyC = bh - 1;
+      const x0 = sxxC | 0, y0 = syyC | 0;
+      const x1 = x0 < bw - 1 ? x0 + 1 : x0, y1 = y0 < bh - 1 ? y0 + 1 : y0;
+      const fx = sxxC - x0, fy = syyC - y0, ifx = 1 - fx, ify = 1 - fy;
+      const i00 = (y0 * bw + x0) << 2, i10 = (y0 * bw + x1) << 2, i01 = (y1 * bw + x0) << 2, i11 = (y1 * bw + x1) << 2;
+      const w00 = ifx * ify, w10 = fx * ify, w01 = ifx * fy, w11 = fx * fy;
+      const o3 = k * 3;
+      let r = data[i00] * w00 + data[i10] * w10 + data[i01] * w01 + data[i11] * w11;
+      let g = data[i00 + 1] * w00 + data[i10 + 1] * w10 + data[i01 + 1] * w01 + data[i11 + 1] * w11;
+      let b = data[i00 + 2] * w00 + data[i10 + 2] * w10 + data[i01 + 2] * w01 + data[i11 + 2] * w11;
+      if (disp > 0.001 && sVal > 0.001 && Math.abs(off) > 0.01) {
+        const kd = disp * sVal;
+        const offR = off * (1 - kd), offB = off * (1 + kd);
+        r = sampleChannel(data, bw, bh, screenX + gx * offR, screenY + gy * offR, 0);
+        b = sampleChannel(data, bw, bh, screenX + gx * offB, screenY + gy * offB, 2);
+      }
+      colorBuf[o3] = r;
+      colorBuf[o3 + 1] = g;
+      colorBuf[o3 + 2] = b;
+    }
+  }
+
+  const blurPx = Math.max(0, blur) * renderDpr;
+  if (blurPx > 0.5) gaussianBlurRGB(colorBuf, cw, ch, blurPx);
+
+  let imgData = buf.img;
+  if (!imgData) { imgData = ctx.createImageData(cw, ch); buf.img = imgData; }
+  const out = imgData.data;
+  k = 0;
+  for (let j = 0; j < ch; j++) {
+    const dfy = (j + 0.5) * dfScale;
+    for (let i = 0; i < cw; i++, k++) {
+      const dfx = (i + 0.5) * dfScale;
+      const a = sampleInside(td, dfx, dfy);
+      const o = k << 2;
+      if (a < 0.004) { out[o + 3] = 0; continue; }
+      const o3 = k * 3;
+      let r = colorBuf[o3], g = colorBuf[o3 + 1], b = colorBuf[o3 + 2];
+      if (ta > 0.001) { r = r * inv + tr * ta; g = g * inv + tg * ta; b = b * inv + tb * ta; }
+      if (autoDark > 0.001) { r *= darkMul; g *= darkMul; b *= darkMul; }
+
+      const d = sampleDist(td, dfx, dfy);
+      const dCss = d / td.TD;
+
+           if (edgeGlow > 0 && dCss > 0 && dCss < 2.5) {
+        const t = 1 - dCss / 2.5;
+        const F = Math.pow(t, 4);
+        const glow = F * edgeGlow * 3.5;
+        r += (255 - r) * glow; g += (255 - g) * glow; b += (255 - b) * glow;
+      }
+
+      if (specOn && dCss > 0 && dCss < specW) {
+        const dL = sampleDist(td, dfx - 1, dfy);
+        const dR = sampleDist(td, dfx + 1, dfy);
+        const dU = sampleDist(td, dfx, dfy - 1);
+        const dD = sampleDist(td, dfx, dfy + 1);
+        let tgx = (dR - dL) * 0.5;
+        let tgy = (dD - dU) * 0.5;
+        const glen = Math.sqrt(tgx * tgx + tgy * tgy);
+        if (glen > 1e-6) {
+          const nxs = -tgx / glen;
+          const nys = -tgy / glen;
+          const rimT = 1 - smoothstep(0, specW, dCss);
+          const d1 = nxs * SPEC_L1X + nys * SPEC_L1Y;
+          const d2 = nxs * SPEC_L2X + nys * SPEC_L2Y;
+          const p1 = d1 > 0 ? d1 : 0;
+          const p2 = d2 > 0 ? d2 : 0;
+          const s1 = p1 * p1 * p1 * specInt1;
+          const s2 = p2 * p2 * p2 * specInt2;
+          const spec = (s1 + s2) * rimT;
+          if (spec > 0.001) {
+            r += (255 - r) * spec; g += (255 - g) * spec; b += (255 - b) * spec;
+          }
+        }
+      }
+
+      out[o] = r; out[o + 1] = g; out[o + 2] = b; out[o + 3] = a * 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function renderTextSheet() {
+  if (!bgData) return; paintSheetGlassFor(textSheet, textSheetCanvas);
+}
+
+function renderTextAll() {
+  if (currentPage !== 'text' || !bgData) return;
+  renderTextGlass();
+  renderTextSheet();
+  renderBackButton(document.getElementById('backFromText'));
+  renderRoundBtn(textParamBtn);
+}
+
+let textDragging = false, textDragStartX = 0, textDragStartY = 0, textDragOriginX = 0, textDragOriginY = 0;
+
+textCanvas.addEventListener('pointerdown', (e) => {
+  if (!textData) return;
+  textDragging = true;
+  textCanvas.setPointerCapture(e.pointerId);
+  textDragStartX = e.clientX; textDragStartY = e.clientY;
+  textDragOriginX = textDragX; textDragOriginY = textDragY;
+});
+textCanvas.addEventListener('pointermove', (e) => {
+  if (!textDragging) return;
+  textDragX = textDragOriginX + (e.clientX - textDragStartX);
+  textDragY = textDragOriginY + (e.clientY - textDragStartY);
+  updateTextBBox();
+  scheduleRenderText();
+});
+textCanvas.addEventListener('pointerup', (e) => {
+  if (!textDragging) return;
+  textDragging = false;
+  if (textCanvas.hasPointerCapture(e.pointerId)) textCanvas.releasePointerCapture(e.pointerId);
+});
+textCanvas.addEventListener('pointercancel', () => { textDragging = false; });
+
+const tAmp = document.getElementById('tAmp'), tRange = document.getElementById('tRange');
+const tCurve = document.getElementById('tCurve'), tBlur = document.getElementById('tBlur');
+const tDisp = document.getElementById('tDisp'), tFontSize = document.getElementById('tFontSize');
+const tFontWeight = document.getElementById('tFontWeight'), tCornerRound = document.getElementById('tCornerRound');
+const tSpecIntensity = document.getElementById('tSpecIntensity'), tSpecWidth = document.getElementById('tSpecWidth');
+const tvAmp = document.getElementById('tvAmp'), tvRange = document.getElementById('tvRange');
+const tvCurve = document.getElementById('tvCurve'), tvBlur = document.getElementById('tvBlur');
+const tvDisp = document.getElementById('tvDisp'), tvFontSize = document.getElementById('tvFontSize');
+const tvFontWeight = document.getElementById('tvFontWeight'), tvCornerRound = document.getElementById('tvCornerRound');
+const tvSpec = document.getElementById('tvSpec'), tvSpecW = document.getElementById('tvSpecW');
+
+function updateTextParams() {
+  textParams.amp = +tAmp.value;
+  textParams.range = +tRange.value;
+  textParams.curve = +tCurve.value;
+  textParams.blur = +tBlur.value;
+  textParams.dispersion = +tDisp.value;
+  textParams.fontSize = +tFontSize.value;
+  textParams.fontWeight = +tFontWeight.value;
+  textParams.cornerRound = +tCornerRound.value;
+  textParams.specIntensity = +tSpecIntensity.value;
+  textParams.specWidth = +tSpecWidth.value;
+  tvAmp.textContent = textParams.amp;
+  tvRange.textContent = textParams.range.toFixed(2);
+  tvCurve.textContent = textParams.curve.toFixed(2);
+  tvBlur.textContent = textParams.blur.toFixed(1);
+  tvDisp.textContent = textParams.dispersion.toFixed(1);
+  tvFontSize.textContent = textParams.fontSize;
+  tvFontWeight.textContent = textParams.fontWeight;
+  tvCornerRound.textContent = textParams.cornerRound.toFixed(1);
+  tvSpec.textContent = textParams.specIntensity.toFixed(2);
+  tvSpecW.textContent = textParams.specWidth.toFixed(1);
+}
+
+tAmp.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tRange.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tCurve.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tBlur.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tDisp.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tSpecIntensity.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tSpecWidth.addEventListener('input', () => { updateTextParams(); scheduleRenderText(); });
+tFontSize.addEventListener('input', () => { updateTextParams(); scheduleTextRebuild(); });
+tFontWeight.addEventListener('input', () => { updateTextParams(); scheduleTextRebuild(); });
+tCornerRound.addEventListener('input', () => { updateTextParams(); scheduleTextRebuild(); });
+
+const tTintOn = document.getElementById('tTintOn'), tTintColor = document.getElementById('tTintColor');
+const tTintAmtEl = document.getElementById('tTintAmt');
+const tvTintColor = document.getElementById('tvTintColor'), tvTintAmt = document.getElementById('tvTintAmt');
+
+function updateTextTint() {
+  textTintEnabled = tTintOn.checked;
+  textTintRgb = hexToRgb(tTintColor.value);
+  textTintAmt = +tTintAmtEl.value;
+  tvTintColor.textContent = tTintColor.value;
+  tvTintAmt.textContent = textTintAmt.toFixed(2);
+  scheduleRenderText();
+}
+tTintOn.addEventListener('change', updateTextTint);
+tTintColor.addEventListener('input', updateTextTint);
+tTintAmtEl.addEventListener('input', updateTextTint);
+
+let textActiveTab = 'tglass', textSheetOpen = false;
+function setTextTab(tab) {
+  textActiveTab = tab;
+  document.querySelectorAll('#textSheet .sheet-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('#textSheet .pane').forEach(el => el.classList.toggle('active', el.dataset.pane === tab));
+  fitSheetHeight(textSheet, textSheetCanvas);
+}
+function openTextSheet() {
+    textSheetOpen = true;
+    openSheetMorph(textSheet, textSheetCanvas, fitSheetHeight, textParamBtn);
+}
+function closeTextSheet() { textSheetOpen = false; closeSheetMorph(textSheet, textParamBtn); }
+function toggleTextSheet() { textSheetOpen ? closeTextSheet() : openTextSheet(); }
+
+textParamBtn.addEventListener('click', toggleTextSheet);
+document.querySelectorAll('#textSheet .sheet-tab').forEach(btn => {
+  btn.addEventListener('click', () => setTextTab(btn.dataset.tab));
+});
+textPage.addEventListener('pointerdown', (e) => {
+  if (!textSheetOpen) return;
+  if (textSheet.contains(e.target)) return;
+  if (textParamBtn.contains(e.target)) return;
+  closeTextSheet();
+});
+
+textGlassInput.addEventListener('input', () => {
+  layoutTextGlass();
+  scheduleRenderText();
+});
+
+const tBgUploadBtn = document.getElementById('tBgUploadBtn'), tBgFile = document.getElementById('tBgFile');
+tBgUploadBtn.addEventListener('click', () => tBgFile.click());
+tBgFile.addEventListener('change', () => {
+  const file = tBgFile.files && tBgFile.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const url = e.target.result;
+    setBgImage(url);
+    bgImage.src = url;
+    tBgFile.value = '';
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('tBgResetBtn').addEventListener('click', () => { setBgImage(defaultBgUrl); bgImage.src = defaultBgUrl; });
+document.getElementById('tBwBgBtn').addEventListener('click', () => { setBgImage(bwBgUrl); bgImage.src = bwBgUrl; });
+
+document.getElementById('tResetAllBtn').addEventListener('click', () => {
+  textParams.amp = 50; tAmp.value = 50;
+  textParams.range = 1; tRange.value = 1;
+  textParams.curve = 3; tCurve.value = 3;
+  textParams.blur = 0; tBlur.value = 0;
+  textParams.dispersion = 0; tDisp.value = 0;
+  textParams.fontSize = 160; tFontSize.value = 160;
+  textParams.fontWeight = 700; tFontWeight.value = 700;
+  textParams.cornerRound = 0; tCornerRound.value = 0;
+  textParams.specIntensity = 1; tSpecIntensity.value = 1;
+  textParams.specWidth = 1.5; tSpecWidth.value = 1.5;
+  tvAmp.textContent = '50'; tvRange.textContent = '1.00'; tvCurve.textContent = '3.00';
+  tvBlur.textContent = '0.0'; tvDisp.textContent = '0.0'; tvFontSize.textContent = '160';
+  tvFontWeight.textContent = '700'; tvCornerRound.textContent = '0.0';
+  tvSpec.textContent = '1.00'; tvSpecW.textContent = '1.5';
+  tTintOn.checked = false; tTintColor.value = '#3b82f6'; tTintAmtEl.value = 0.35;
+  updateTextTint();
+  textGlassInput.value = 'LIQUID';
+  textDragX = 0; textDragY = 0;
+  layoutTextGlass();
+  scheduleRenderText();
+});
+
+/* ================= 胶囊开关页 ================= */
+const togglePage = document.getElementById('pageToggle');
+const switchBase = document.getElementById('switchBase');
+const switchKnob = document.getElementById('switchKnob');
+const knobGlass = document.getElementById('knobGlass');
+const knobWhite = document.getElementById('knobWhite');
+
+/* 基础几何（scale=1），真实像素放大，不用 CSS transform，避免玻璃双重缩放 */
+const BASE_SW_W = 120, BASE_SW_H = 60;
+const BASE_KNOB_W = 64, BASE_KNOB_H = 52;
+const BASE_KNOB_PAD = 4;
+let SW_W = BASE_SW_W, SW_H = BASE_SW_H;
+let KNOB_W = BASE_KNOB_W, KNOB_H = BASE_KNOB_H;
+let KNOB_PAD = BASE_KNOB_PAD;
+let KNOB_TRAVEL = 0, CENTER_MIN = 0, CENTER_MAX = 0, DRAG_CENTER_MIN = 0, DRAG_CENTER_MAX = 0;
+function recomputeToggleGeometry() {
+  SW_W = BASE_SW_W * toggleScale;
+  SW_H = BASE_SW_H * toggleScale;
+  KNOB_W = BASE_KNOB_W * toggleScale;
+  KNOB_H = BASE_KNOB_H * toggleScale;
+  KNOB_PAD = BASE_KNOB_PAD * toggleScale;
+  KNOB_TRAVEL = SW_W - KNOB_W - KNOB_PAD * 2;
+  CENTER_MIN = KNOB_PAD + KNOB_W / 2;
+  CENTER_MAX = SW_W - KNOB_PAD - KNOB_W / 2;
+  DRAG_CENTER_MIN = CENTER_MIN - 6 * toggleScale;
+  DRAG_CENTER_MAX = CENTER_MAX + 6 * toggleScale;
+}
+const CLICK_MOVE_THRESHOLD = 4;
+const GLASS_SCALE_GAIN = 0.6;
+/* 滑块满玻璃峰值倍数：拖动、松手吸附与点击共用同一值 1.75 */
+const KNOB_SCALE_MAX = 1.75;
+
+/* 固定形变强度（用户调好的手感） */
+const DEFORM_INTENSITY = 0.5;
+
+let isPressed = false;
+let toggleOn = false;
+let toggleScale = 1;   /* 组件大小系数：直接放大真实像素几何，不用 CSS transform */
+  isPressed = false;
+  isDragging = false;
+  hasMoved = false;
+  toggleAnimating = false;
+let snapRAF = null;
+let dragRAF = null;
+let snapTargetOn = null;
+
+let currentCenter = CENTER_MIN;
+let hVelocity = 0;
+
+let switchBaseRect = { cx: 0, cy: 0, hw: 60, hh: 30, R: 30 };
+let switchBaseColor = { r: 120, g: 120, b: 128 };
+let switchBaseAlpha = 0.35;
+
+let glassOp = 0;
+let glassAnimFrom = 0, glassAnimTo = 0;
+let glassAnimStart = 0, glassAnimDuration = 0;
+let glassRAF = null;
+
+/* 更利落的玻璃淡入淡出：easeOutQuart */
+function animateGlass(target, duration) {
+  glassAnimFrom = glassOp;
+  glassAnimTo = target;
+  glassAnimStart = performance.now();
+  glassAnimDuration = duration;
+  if (!glassRAF) glassRAF = requestAnimationFrame(glassTick);
+}
+
+function glassTick(now) {
+  if (glassAnimDuration > 0) {
+    const t = Math.min(1, (now - glassAnimStart) / glassAnimDuration);
+    glassOp = glassAnimFrom + (glassAnimTo - glassAnimFrom) * easeOutQuart(t);
+    if (t >= 1) {
+      glassOp = glassAnimTo;
+      glassAnimDuration = 0;
+    }
+  }
+
+  const noActiveMotion = !isDragging && !snapRAF && !toggleAnimating && !dragRAF;
+  if (noActiveMotion) {
+    updateKnob(currentCenter, null, 0, now);
+  }
+
+  if (glassAnimDuration > 0) {
+    glassRAF = requestAnimationFrame(glassTick);
+  } else {
+    glassRAF = null;
+  }
+}
+
+/* 速度 → 拉伸（已乘 DEFORM_INTENSITY） */
+function computeStretchFromVelocity(v) {
+  const t = Math.tanh(v * 2.5);
+  return (t > 0 ? t * 0.32 : t * 0.25) * DEFORM_INTENSITY;
+}
+
+/* 位移 → 拉伸（拖动专用，已乘 DEFORM_INTENSITY） */
+function computeStretchFromDisplacement(dx) {
+  return Math.tanh(dx / 20) * 0.18 * DEFORM_INTENSITY;
+}
+
+function updateSwitchBaseRect() {
+  const rect = switchBase.getBoundingClientRect();
+  switchBaseRect = {
+    cx: rect.left + rect.width / 2,
+    cy: rect.top + rect.height / 2,
+    hw: rect.width / 2,
+    hh: rect.height / 2,
+    R: rect.height / 2
+  };
+}
+
+function switchSceneSampler(screenX, screenY) {
+  const bg = sampleBackgroundRGB(screenX, screenY);
+  const b = switchBaseRect;
+  const lx = screenX - b.cx;
+  const ly = screenY - b.cy;
+  const ihw = b.hw - b.R;
+  const ihh = b.hh - b.R;
+  const qx = Math.abs(lx) - ihw;
+  const qy = Math.abs(ly) - ihh;
+  const ax = Math.max(qx, 0);
+  const ay = Math.max(qy, 0);
+  const sdf = Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - b.R;
+
+  if (sdf >= 0.5) return bg;
+
+  const c = switchBaseColor;
+  const a = switchBaseAlpha;
+  const baseResult = [
+    bg[0] * (1 - a) + c.r * a,
+    bg[1] * (1 - a) + c.g * a,
+    bg[2] * (1 - a) + c.b * a
+  ];
+  if (sdf <= -0.5) return baseResult;
+
+  const t = sdf + 0.5;
+  return [
+    baseResult[0] * (1 - t) + bg[0] * t,
+    baseResult[1] * (1 - t) + bg[1] * t,
+    baseResult[2] * (1 - t) + bg[2] * t
+  ];
+}
+
+function setBaseColorFromRatio(ratio) {
+  ratio = Math.max(0, Math.min(1, ratio));
+  const r = Math.round(lerp(120, 52, ratio));
+  const g = Math.round(lerp(120, 199, ratio));
+  const b = Math.round(lerp(128, 89, ratio));
+  const a = lerp(0.35, 1.0, ratio);
+  switchBase.style.background = `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+  switchBaseColor = { r, g, b };
+  switchBaseAlpha = a;
+}
+
+function getRestCenter(on) {
+  return KNOB_PAD + KNOB_W / 2 + (on ? KNOB_TRAVEL : 0);
+}
+
+function updateKnob(center, scaleOverride, stretch, now) {
+  const scale = scaleOverride !== null ? scaleOverride : (1 + glassOp * GLASS_SCALE_GAIN);
+
+  const baseW = KNOB_W * scale;
+  const baseH = KNOB_H * scale;
+  const visualW = baseW * (1 + stretch);
+  const visualH = baseH * (1 - Math.abs(stretch) * 0.22);
+  const left = center - visualW / 2;
+  const top = (SW_H - visualH) / 2;
+  const radius = visualH / 2;
+
+  switchKnob.style.left = left + 'px';
+  switchKnob.style.top = top + 'px';
+  switchKnob.style.width = visualW + 'px';
+  switchKnob.style.height = visualH + 'px';
+  switchKnob.style.borderRadius = radius + 'px';
+
+  knobWhite.style.opacity = Math.max(0, 1 - glassOp);
+
+  if (glassOp > 0.01) {
+    /* 真实像素几何：center/visualW/visualH/radius 已随 toggleScale 放大，不再二次乘系数 */
+    const cxScreen = switchBaseRect.cx - switchBaseRect.hw + center;
+    const cyScreen = switchBaseRect.cy;
+    renderGlass(knobGlass,
+      cxScreen - visualW / 2,
+      cyScreen - visualH / 2,
+      visualW, visualH, radius, {
+      amp: 10 * toggleScale, range: 1, curve: 3, blur: 0,
+      dispersion: 0, tint: null, tintAmt: 0,
+      edgeGlow: 0.05, specIntensity: 1, specWidth: 1.5,
+      dpr: getDPR(),
+      sceneSampler: switchSceneSampler
+    });
+    knobGlass.style.opacity = Math.min(1, glassOp);
+    knobGlass.style.display = 'block';
+  } else {
+    knobGlass.style.opacity = 0;
+    knobGlass.style.display = 'none';
+  }
+}
+
+/* ===== 拖动 ===== */
+let dragStartClientX = 0;
+let dragStartCenter = 0;
+let dragLastMoveTime = 0;
+let dragLastTickTime = 0;
+
+function dragTick(now) {
+  if (!isDragging) { dragRAF = null; return; }
+
+  const dt = Math.max(1, now - dragLastTickTime);
+  dragLastTickTime = now;
+
+  if (now - dragLastMoveTime > 40) {
+    hVelocity *= Math.exp(-dt / 55);
+    if (Math.abs(hVelocity) < 0.001) hVelocity = 0;
+  }
+
+  /* 位移驱动 + 速度驱动，叠加后和点击同幅度 */
+  const dx = currentCenter - dragStartCenter;
+  const dispStretch = computeStretchFromDisplacement(dx);
+  const vStretch = computeStretchFromVelocity(hVelocity);
+  const totalStretch = dispStretch + vStretch;
+
+  /* 拖动满玻璃放大到与点击同一峰值，随玻璃淡入同步 */
+  const dragScale = 1 + (KNOB_SCALE_MAX - 1) * glassOp;
+  updateKnob(currentCenter, dragScale, totalStretch, now);
+
+  dragRAF = requestAnimationFrame(dragTick);
+}
+
+function onSwitchPointerDown(e) {
+  if (toggleAnimating || isDragging || isPressed) return;
+
+  if (snapRAF && snapTargetOn !== null) {
+    cancelAnimationFrame(snapRAF);
+    snapRAF = null;
+    finishSnap(snapTargetOn, getRestCenter(snapTargetOn));
+    snapTargetOn = null;
+  }
+
+  isPressed = true;
+  isDragging = false;
+  hasMoved = false;
+  dragStartClientX = e.clientX;
+  dragStartCenter = currentCenter;
+  dragLastMoveTime = performance.now();
+  dragLastTickTime = performance.now();
+  hVelocity = 0;
+
+  switchBase.classList.add('dragging');
+  switchBase.setPointerCapture(e.pointerId);
+
+  updateSwitchBaseRect();
+
+  animateGlass(1, 70);
+
+  e.preventDefault();
+}
+
+function onSwitchPointerMove(e) {
+  if (!isPressed) return;
+
+  const dx = e.clientX - dragStartClientX;
+
+  if (!isDragging) {
+    if (Math.abs(dx) <= CLICK_MOVE_THRESHOLD * toggleScale) return;
+    isDragging = true;
+    hasMoved = true;
+    dragLastMoveTime = performance.now();
+    dragLastTickTime = performance.now();
+    if (!dragRAF) dragRAF = requestAnimationFrame(dragTick);
+  }
+
+  const now = performance.now();
+  const dt = Math.max(1, now - dragLastMoveTime);
+  dragLastMoveTime = now;
+
+  let center = dragStartCenter + dx;
+  if (center < DRAG_CENTER_MIN) center = DRAG_CENTER_MIN;
+  if (center > DRAG_CENTER_MAX) center = DRAG_CENTER_MAX;
+
+  const v = (center - currentCenter) / dt;
+  hVelocity = hVelocity * 0.35 + v * 0.65;
+
+  currentCenter = center;
+
+  const ratio = (currentCenter - CENTER_MIN) / (CENTER_MAX - CENTER_MIN);
+  setBaseColorFromRatio(ratio);
+}
+
+function onSwitchPointerUp(e) {
+  if (!isPressed) return;
+  isPressed = false;
+  if (dragRAF) { cancelAnimationFrame(dragRAF); dragRAF = null; }
+  switchBase.classList.remove('dragging');
+  if (switchBase.hasPointerCapture(e.pointerId)) switchBase.releasePointerCapture(e.pointerId);
+
+  if (!isDragging) {
+    animateToggle();
+  } else {
+    isDragging = false;
+    const ratio = (currentCenter - CENTER_MIN) / (CENTER_MAX - CENTER_MIN);
+    snapTo(ratio > 0.5);
+  }
+}
+
+function onSwitchPointerCancel(e) {
+  if (!isPressed) return;
+  isPressed = false;
+  isDragging = false;
+  if (dragRAF) { cancelAnimationFrame(dragRAF); dragRAF = null; }
+  switchBase.classList.remove('dragging');
+  if (switchBase.hasPointerCapture(e.pointerId)) switchBase.releasePointerCapture(e.pointerId);
+  snapTo(toggleOn);
+}
+
+/* ===== 松手弹簧吸附 ===== */
+function snapTo(targetOn) {
+  if (snapRAF) cancelAnimationFrame(snapRAF);
+  snapTargetOn = targetOn;
+
+  const targetCenter = getRestCenter(targetOn);
+  let pos = currentCenter;
+  let vel = hVelocity;
+  let lastT = performance.now();
+
+  const STIFFNESS = 0.0007;
+  const DAMPING = 0.048;
+
+  function tick(now) {
+    const dt = Math.min(32, now - lastT);
+    lastT = now;
+
+    const accel = STIFFNESS * (targetCenter - pos) - DAMPING * vel;
+    vel += accel * dt;
+    pos += vel * dt;
+
+    hVelocity = vel;
+    currentCenter = pos;
+
+    const ratio = Math.max(0, Math.min(1, (pos - CENTER_MIN) / (CENTER_MAX - CENTER_MIN)));
+    setBaseColorFromRatio(ratio);
+
+    const stretch = computeStretchFromVelocity(vel);
+    /* 吸附阶段保持与点击同一峰值，收尾随玻璃淡出回落 */
+    const snapScale = 1 + (KNOB_SCALE_MAX - 1) * glassOp;
+    updateKnob(pos, snapScale, stretch, now);
+
+    if (Math.abs(vel) < 0.005 && Math.abs(pos - targetCenter) < 0.4) {
+      finishSnap(targetOn, targetCenter);
+      animateGlass(0, 90);
+      snapRAF = null;
+      snapTargetOn = null;
+      return;
+    }
+
+    snapRAF = requestAnimationFrame(tick);
+  }
+
+  snapRAF = requestAnimationFrame(tick);
+}
+
+function finishSnap(targetOn, targetCenter) {
+  toggleOn = targetOn;
+  currentCenter = targetCenter;
+  hVelocity = 0;
+  switchBase.classList.toggle('on', toggleOn);
+  switchBaseColor = toggleOn ? { r: 52, g: 199, b: 89 } : { r: 120, g: 120, b: 128 };
+  switchBaseAlpha = toggleOn ? 1 : 0.35;
+  switchBase.style.background = toggleOn ? '#34c759' : 'rgba(120,120,128,0.35)';
+  /* 落点帧保持吸附峰值，随后由玻璃淡出回落到 1 */
+  updateKnob(targetCenter, 1 + (KNOB_SCALE_MAX - 1) * glassOp, 0, performance.now());
+}
+
+/* ===== 点击液化切换动画 ===== */
+function animateToggle() {
+  if (toggleAnimating) return;
+  toggleAnimating = true;
+  updateSwitchBaseRect();
+
+  const fromCenter = getRestCenter(toggleOn);
+  const toCenter = getRestCenter(!toggleOn);
+  const fromBgT = toggleOn ? 1 : 0;
+  const toBgT = toggleOn ? 0 : 1;
+
+  const startTime = performance.now();
+  /* 340ms：快、不拖沓 */
+  const D1 = 100, D_HOLD = 120, D3 = 120;
+  const TOTAL = D1 + D_HOLD + D3;
+  const SCALE_START = 1 + glassOp * GLASS_SCALE_GAIN;
+  const SCALE_MAX = KNOB_SCALE_MAX;
+
+  animateGlass(1, 60);
+
+  let lastT = startTime;
+  let lastX = fromCenter;
+  let glassFadeStarted = false;
+
+  function tick(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(1, elapsed / TOTAL);
+    const xEase = easeInOutCubic(t);
+    const xOff = fromCenter + (toCenter - fromCenter) * xEase;
+
+    const dt = Math.max(1, now - lastT);
+    const v = (xOff - lastX) / dt;
+    hVelocity = hVelocity * 0.5 + v * 0.5;
+    lastX = xOff;
+    lastT = now;
+    currentCenter = xOff;
+
+    let scale;
+    if (elapsed < D1) {
+      scale = SCALE_START + (SCALE_MAX - SCALE_START) * easeOutBack(elapsed / D1);
+    } else if (elapsed < D1 + D_HOLD) {
+      scale = SCALE_MAX;
+    } else {
+      const p3 = Math.min(1, (elapsed - D1 - D_HOLD) / D3);
+      scale = SCALE_MAX - (SCALE_MAX - 1) * easeOutCubic(p3);
+    }
+
+    /* 正弦钟形固定形变 + 速度驱动，峰值与拖动接近 */
+    const vStretch = computeStretchFromVelocity(hVelocity);
+    const peakStretch = Math.sin(Math.PI * t) * 0.28 * DEFORM_INTENSITY;
+    const totalStretch = vStretch + peakStretch;
+
+    const bgT = fromBgT + (toBgT - fromBgT) * xEase;
+    setBaseColorFromRatio(bgT);
+
+    if (elapsed >= D1 + D_HOLD && !glassFadeStarted) {
+      animateGlass(0, D3 * 0.7);
+      glassFadeStarted = true;
+    }
+
+    updateKnob(xOff, scale, totalStretch, now);
+
+    if (elapsed < TOTAL) {
+      requestAnimationFrame(tick);
+    } else {
+      toggleOn = !toggleOn;
+      toggleAnimating = false;
+      currentCenter = toCenter;
+      hVelocity = 0;
+      switchBase.classList.toggle('on', toggleOn);
+      switchBaseColor = toggleOn ? { r: 52, g: 199, b: 89 } : { r: 120, g: 120, b: 128 };
+      switchBaseAlpha = toggleOn ? 1 : 0.35;
+      switchBase.style.background = toggleOn ? '#34c759' : 'rgba(120,120,128,0.35)';
+      updateKnob(toCenter, null, 0, performance.now());
+      animateGlass(0, 70);
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function layoutToggle() {
+  if (snapRAF) { cancelAnimationFrame(snapRAF); snapRAF = null; }
+  if (dragRAF) { cancelAnimationFrame(dragRAF); dragRAF = null; }
+  isDragging = false;
+  hasMoved = false;
+  toggleAnimating = false;
+  snapTargetOn = null;
+
+  /* 真实像素几何：先按当前系数重算并写底座尺寸，弃用 CSS transform */
+  recomputeToggleGeometry();
+  switchBase.style.width = SW_W + 'px';
+  switchBase.style.height = SW_H + 'px';
+  switchBase.style.borderRadius = (SW_H / 2) + 'px';
+
+  currentCenter = getRestCenter(toggleOn);
+  hVelocity = 0;
+  glassOp = 0;
+  glassAnimDuration = 0;
+  glassAnimTo = 0;
+
+  switchBase.classList.toggle('on', toggleOn);
+  switchBaseColor = toggleOn ? { r: 52, g: 199, b: 89 } : { r: 120, g: 120, b: 128 };
+  switchBaseAlpha = toggleOn ? 1 : 0.35;
+  switchBase.style.background = toggleOn ? '#34c759' : 'rgba(120,120,128,0.35)';
+
+  updateSwitchBaseRect();
+  updateKnob(currentCenter, null, 0, performance.now());
+
+  if (currentPage === 'toggle') {
+    renderBackButton(document.getElementById('backFromToggle'));
+    renderRoundBtn(toggleParamBtn);
+  }
+}
+
+switchBase.addEventListener('pointerdown', onSwitchPointerDown);
+switchBase.addEventListener('pointermove', onSwitchPointerMove);
+switchBase.addEventListener('pointerup', onSwitchPointerUp);
+switchBase.addEventListener('pointercancel', onSwitchPointerCancel);
+
+/* ---- 开关参数 sheet：组件大小 ---- */
+const toggleParamBtn = document.getElementById('toggleParamBtn');
+const toggleSheet = document.getElementById('toggleSheet');
+const toggleSheetCanvas = document.getElementById('toggleSheetCanvas');
+const toggleSizeInput = document.getElementById('toggleSize');
+const vToggleSize = document.getElementById('vToggleSize');
+let toggleSheetOpen = false;
+
+function applyToggleSize() {
+  toggleScale = +toggleSizeInput.value;
+  vToggleSize.textContent = toggleScale.toFixed(2) + '×';
+  recomputeToggleGeometry();
+  layoutToggle();
+}
+toggleSizeInput.addEventListener('input', applyToggleSize);
+
+toggleParamBtn.addEventListener('click', () => {
+  toggleSheetOpen = !toggleSheetOpen;
+  if (toggleSheetOpen) {
+    openSheetMorph(toggleSheet, toggleSheetCanvas, fitSheetHeight, toggleParamBtn);
+    renderRoundBtn(toggleParamBtn);
+  } else {
+    closeSheetMorph(toggleSheet, toggleParamBtn);
+  }
+});
+togglePage.addEventListener('pointerdown', (e) => {
+  if (!toggleSheetOpen) return;
+  if (toggleSheet.contains(e.target)) return;
+  if (toggleParamBtn.contains(e.target)) return;
+  toggleSheetOpen = false;
+  closeSheetMorph(toggleSheet, toggleParamBtn);
+});
+
+/* ================= 液态滑块页 ================= */
+const sliderTrack = document.getElementById('sliderTrack');
+const sliderFill = document.getElementById('sliderFill');
+const sliderKnob = document.getElementById('sliderKnob');
+const sliderKnobGlass = document.getElementById('sliderKnobGlass');
+const sliderKnobWhite = document.getElementById('sliderKnobWhite');
+
+const SL_KNOB_W = 44, SL_KNOB_H = 30;
+const SL_FILL_COLOR = [59, 130, 246];   // #3b82f6 已走段
+const SL_TRACK_COLOR = [120, 120, 128]; // 未走段灰
+const SL_FILL_A = 0.95, SL_TRACK_A = 0.5;
+
+let sliderCenter = 0;
+let sliderDragging = false;
+let sliderVel = 0;
+let sInitialized = false;
+let sDragStartClientX = 0, sDragStartCenter = 0;
+let sLastMoveTime = 0, sLastTickTime = 0;
+let sFillW = 0;
+let trackRect = { cx: 0, cy: 0, hw: 160, hh: 22, R: 22, w: 320 };
+
+let sGlassOp = 0;
+let sGlassAnimFrom = 0, sGlassAnimTo = 0, sGlassAnimStart = 0, sGlassAnimDuration = 0;
+let sGlassRAF = null, sTickRAF = null;
+
+/* 无级条组件大小：缩放轨道像素宽度，其余基于真实像素自适应 */
+let sliderMode = 'continuous';
+let sliderSize = 1;
+const SL_BASE_LEN = 480;
+function applySliderWidth() {
+  const w = Math.min(SL_BASE_LEN * sliderSize, window.innerWidth * 0.88);
+  sliderTrack.style.width = w + 'px';
+}
+
+/* 中心行程铺满整根轨道 [0, w]，允许拇指半颗探出两端，行程与底座等长 */
+function sMinCenter() { return 0; }
+function sMaxCenter() { return trackRect.w; }
+
+function updateSliderTrackRect() {
+  const rect = sliderTrack.getBoundingClientRect();
+  trackRect = {
+    cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2,
+    hw: rect.width / 2, hh: rect.height / 2, R: rect.height / 2, w: rect.width
+  };
+}
+
+/* 拇指玻璃采样：背景 + 轨道（已走蓝 / 未走灰），边缘抗锯齿混合 */
+function sliderSceneSampler(sx, sy) {
+  const bg = sampleBackgroundRGB(sx, sy);
+  const r = trackRect;
+  const lx = sx - r.cx, ly = sy - r.cy;
+  const ihw = r.hw - r.R, ihh = r.hh - r.R;
+  const qx = Math.abs(lx) - ihw, qy = Math.abs(ly) - ihh;
+  const ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+  const sdf = Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - r.R;
+  if (sdf >= 0.5) return bg;
+  const relX = sx - (r.cx - r.hw);
+  const filled = relX <= sFillW;
+  const c = filled ? SL_FILL_COLOR : SL_TRACK_COLOR;
+  const a = filled ? SL_FILL_A : SL_TRACK_A;
+  const base = [
+    bg[0] * (1 - a) + c[0] * a,
+    bg[1] * (1 - a) + c[1] * a,
+    bg[2] * (1 - a) + c[2] * a
+  ];
+  if (sdf <= -0.5) return base;
+  const t = sdf + 0.5;
+  return [
+    base[0] * (1 - t) + bg[0] * t,
+    base[1] * (1 - t) + bg[1] * t,
+    base[2] * (1 - t) + bg[2] * t
+  ];
+}
+
+/* 玻璃淡入淡出：easeOutQuart，与开关一致 */
+function animateSGlass(target, duration) {
+  sGlassAnimFrom = sGlassOp;
+  sGlassAnimTo = target;
+  sGlassAnimStart = performance.now();
+  sGlassAnimDuration = duration;
+  if (!sGlassRAF) sGlassRAF = requestAnimationFrame(sGlassTick);
+}
+function sGlassTick(now) {
+  if (sGlassAnimDuration > 0) {
+    const t = Math.min(1, (now - sGlassAnimStart) / sGlassAnimDuration);
+    sGlassOp = sGlassAnimFrom + (sGlassAnimTo - sGlassAnimFrom) * easeOutQuart(t);
+    if (t >= 1) { sGlassOp = sGlassAnimTo; sGlassAnimDuration = 0; }
+  }
+  if (!sliderDragging && !sTickRAF) updateSliderKnob(sliderCenter, 0, now);
+  if (sGlassAnimDuration > 0) sGlassRAF = requestAnimationFrame(sGlassTick);
+  else sGlassRAF = null;
+}
+
+/* 填充从左到拇指中心，由拇指盖住接口，避免拉伸露馅 */
+function applySliderFill() {
+  sFillW = sliderCenter;
+  sliderFill.style.width = sliderCenter + 'px';
+}
+
+function updateSliderKnob(center, stretch, now) {
+  const scale = 1 + (KNOB_SCALE_MAX - 1) * sGlassOp;
+  const baseW = SL_KNOB_W * scale;
+  const baseH = SL_KNOB_H * scale;
+  const visualW = baseW * (1 + stretch);
+  const visualH = baseH * (1 - Math.abs(stretch) * 0.22);
+  const left = center - visualW / 2;
+  const top = (trackRect.hh * 2 - visualH) / 2;
+  const radius = visualH / 2;
+
+  sliderKnob.style.left = left + 'px';
+  sliderKnob.style.top = top + 'px';
+  sliderKnob.style.width = visualW + 'px';
+  sliderKnob.style.height = visualH + 'px';
+  sliderKnob.style.borderRadius = radius + 'px';
+  sliderKnobWhite.style.opacity = Math.max(0, 1 - sGlassOp);
+
+  if (sGlassOp > 0.01) {
+    const cxScreen = trackRect.cx - trackRect.hw + center;
+    const cyScreen = trackRect.cy;
+    renderGlass(sliderKnobGlass,
+      cxScreen - visualW / 2, cyScreen - visualH / 2,
+      visualW, visualH, radius, {
+        amp: 10, range: 1, curve: 3, blur: 0, dispersion: 0,
+        tint: null, tintAmt: 0, edgeGlow: 0.05,
+        specIntensity: 1, specWidth: 1.5,
+        dpr: getDPR(), sceneSampler: sliderSceneSampler
+      });
+    sliderKnobGlass.style.opacity = Math.min(1, sGlassOp);
+    sliderKnobGlass.style.display = 'block';
+  } else {
+    sliderKnobGlass.style.opacity = 0;
+    sliderKnobGlass.style.display = 'none';
+  }
+}
+
+function sTick(now) {
+  if (!sliderDragging) { sTickRAF = null; return; }
+  const dt = Math.max(1, now - sLastTickTime);
+  sLastTickTime = now;
+  if (now - sLastMoveTime > 40) {
+    sliderVel *= Math.exp(-dt / 55);
+    if (Math.abs(sliderVel) < 0.001) sliderVel = 0;
+  }
+  const dx = sliderCenter - sDragStartCenter;
+  const totalStretch = computeStretchFromDisplacement(dx) + computeStretchFromVelocity(sliderVel);
+  updateSliderKnob(sliderCenter, totalStretch, now);
+  sTickRAF = requestAnimationFrame(sTick);
+}
+
+function onSliderDown(e) {
+  if (sliderDragging) return;
+  updateSliderTrackRect();
+  const mn = sMinCenter(), mx = sMaxCenter();
+  /* 按下即吸到指点位置 */
+  const rel = e.clientX - (trackRect.cx - trackRect.hw);
+  sDragStartCenter = Math.max(mn, Math.min(mx, rel));
+  sliderCenter = sDragStartCenter;
+  sDragStartClientX = e.clientX;
+  sLastMoveTime = performance.now();
+  sLastTickTime = performance.now();
+  sliderVel = 0;
+  sliderDragging = true;
+  sliderTrack.classList.add('dragging');
+  try { sliderTrack.setPointerCapture(e.pointerId); } catch (_) {}
+  applySliderFill();
+  updateSliderKnob(sliderCenter, 0, performance.now());
+  animateSGlass(1, 70);
+  if (!sTickRAF) sTickRAF = requestAnimationFrame(sTick);
+  e.preventDefault();
+}
+
+function onSliderMove(e) {
+  if (!sliderDragging) return;
+  const dx = e.clientX - sDragStartClientX;
+  const now = performance.now();
+  const dt = Math.max(1, now - sLastMoveTime);
+  sLastMoveTime = now;
+  let center = sDragStartCenter + dx;
+  const mn = sMinCenter(), mx = sMaxCenter();
+  if (center < mn) center = mn; else if (center > mx) center = mx;
+  const v = (center - sliderCenter) / dt;
+  sliderVel = sliderVel * 0.35 + v * 0.65;
+  sliderCenter = center;
+  applySliderFill();
+}
+
+function onSliderUp(e) {
+  if (!sliderDragging) return;
+  sliderDragging = false;
+  if (sTickRAF) { cancelAnimationFrame(sTickRAF); sTickRAF = null; }
+  sliderTrack.classList.remove('dragging');
+  try { if (sliderTrack.hasPointerCapture(e.pointerId)) sliderTrack.releasePointerCapture(e.pointerId); } catch (_) {}
+  animateSGlass(0, 90);
+}
+
+function layoutSlider() {
+  if (sliderMode === 'continuous') {
+    applySliderWidth();
+    updateSliderTrackRect();
+    if (trackRect.w > 0) {
+      const mn = sMinCenter(), mx = sMaxCenter();
+      if (!sInitialized) { sliderCenter = (mn + mx) / 2; sInitialized = true; }
+      sliderCenter = Math.max(mn, Math.min(mx, sliderCenter));
+      applySliderFill();
+      updateSliderKnob(sliderCenter, 0, performance.now());
+    }
+  } else {
+    applySegWidth();
+    updateSegRect();
+    renderSegTicks();
+    if (segRect.w > 0) {
+      if (!segInitialized) { segCenter = segSlotX(Math.round((segCount - 1) / 2)); segInitialized = true; }
+      segCenter = Math.max(0, Math.min(segRect.w, segCenter));
+      applySegFill();
+      updateSegKnob(segCenter, 0, performance.now());
+    }
+  }
+
+  if (currentPage === 'slider') {
+    renderBackButton(document.getElementById('backFromSlider'));
+    renderRoundBtn(sliderParamBtn);
+  }
+}
+
+sliderTrack.addEventListener('pointerdown', onSliderDown);
+sliderTrack.addEventListener('pointermove', onSliderMove);
+sliderTrack.addEventListener('pointerup', onSliderUp);
+sliderTrack.addEventListener('pointercancel', onSliderUp);
+/* mouse 兜底（缺 pointer 事件的环境）；已按住时 handler 内部直接忽略，真实指针不会重复 */
+sliderTrack.addEventListener('mousedown', onSliderDown);
+window.addEventListener('mousemove', onSliderMove);
+window.addEventListener('mouseup', onSliderUp);
+
+/* ================= 分段滑条（与无级条同页，段不显示） ================= */
+const segTrack = document.getElementById('segTrack');
+const segFill = document.getElementById('segFill');
+const segKnob = document.getElementById('segKnob');
+const segKnobGlass = document.getElementById('segKnobGlass');
+const segKnobWhite = document.getElementById('segKnobWhite');
+
+let segCount = 5;          /* 可在参数 sheet 自定义 */
+let segSize = 1;
+let segCenter = 0;
+let segDragging = false;
+let segVel = 0;
+let segFillW = 0;
+let segInitialized = false;
+let segDragStartClientX = 0, segDragStartCenter = 0;
+let segLastMoveTime = 0;
+let segRect = { cx: 0, cy: 0, hw: 160, hh: 4, R: 4, w: 320 };
+let segGlassOp = 0;
+let segGlassAnimFrom = 0, segGlassAnimTo = 0, segGlassAnimStart = 0, segGlassAnimDuration = 0;
+let segGlassRAF = null;
+let segSnapRAF = null;
+
+function applySegWidth() {
+  const w = Math.min(SL_BASE_LEN * segSize, window.innerWidth * 0.88);
+  segTrack.style.width = w + 'px';
+}
+function updateSegRect() {
+  const rect = segTrack.getBoundingClientRect();
+  segRect = {
+    cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2,
+    hw: rect.width / 2, hh: rect.height / 2, R: rect.height / 2, w: rect.width
+  };
+}
+/* 第 i 段槽位的中心 x（相对轨道左缘），段均分铺满 */
+function segSlotX(i) { return i / (segCount - 1) * segRect.w; }
+function nearestSegIndex(x) {
+  const f = Math.round(x / segRect.w * (segCount - 1));
+  return Math.max(0, Math.min(segCount - 1, f));
+}
+
+function segSceneSampler(sx, sy) {
+  const bg = sampleBackgroundRGB(sx, sy);
+  const r = segRect;
+  const lx = sx - r.cx, ly = sy - r.cy;
+  const ihw = r.hw - r.R, ihh = r.hh - r.R;
+  const qx = Math.abs(lx) - ihw, qy = Math.abs(ly) - ihh;
+  const ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+  const sdf = Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - r.R;
+  if (sdf >= 0.5) return bg;
+  const relX = sx - (r.cx - r.hw);
+  const filled = relX <= segFillW;
+  const c = filled ? SL_FILL_COLOR : SL_TRACK_COLOR;
+  const a = filled ? SL_FILL_A : SL_TRACK_A;
+  const base = [
+    bg[0] * (1 - a) + c[0] * a,
+    bg[1] * (1 - a) + c[1] * a,
+    bg[2] * (1 - a) + c[2] * a
+  ];
+  if (sdf <= -0.5) return base;
+  const t = sdf + 0.5;
+  return [
+    base[0] * (1 - t) + bg[0] * t,
+    base[1] * (1 - t) + bg[1] * t,
+    base[2] * (1 - t) + bg[2] * t
+  ];
+}
+
+function setSliderMode(mode) {
+  sliderMode = mode;
+  const isSeg = mode === 'segmented';
+  sliderTrack.style.display = isSeg ? 'none' : '';
+  segTrack.style.display = isSeg ? '' : 'none';
+  document.getElementById('segCountRow').style.display = isSeg ? '' : 'none';
+  document.getElementById('segHintRow').style.display = isSeg ? '' : 'none';
+  document.getElementById('sliderSizeRow').style.display = isSeg ? 'none' : '';
+  document.getElementById('segSizeRow').style.display = isSeg ? '' : 'none';
+  document.getElementById('modeContinuous').classList.toggle('active', !isSeg);
+  document.getElementById('modeSegmented').classList.toggle('active', isSeg);
+  requestAnimationFrame(() => {
+  layoutSlider();
+  if (sliderSheetOpen) fitSheetHeight(sliderSheet, sliderSheetCanvas);
+});
+}
+
+function renderSegTicks() {
+  const container = document.getElementById('segTicks');
+  if (!container) return;
+  container.innerHTML = '';
+  const w = segRect.w || segTrack.getBoundingClientRect().width;
+  if (w <= 0) return;
+  // 两端不画刻度，只画中间槽位
+  for (let i = 1; i < segCount - 1; i++) {
+    const x = i / (segCount - 1) * w;
+    const tick = document.createElement('div');
+    tick.className = 'seg-tick';
+    tick.style.left = x + 'px';
+    tick.dataset.segIndex = i;
+    container.appendChild(tick);
+  }
+  updateSegTicks();
+}
+
+function updateSegTicks() {
+  const w = segRect.w || segTrack.getBoundingClientRect().width;
+  if (w <= 0) return;
+  document.querySelectorAll('#segTicks .seg-tick').forEach((tick) => {
+    const i = +tick.dataset.segIndex;
+    const x = i / (segCount - 1) * w;
+    tick.classList.toggle('filled', x <= segCenter + 0.5);
+  });
+}
+
+function applySegFill() {
+  segFillW = segCenter;
+  segFill.style.width = segCenter + 'px';
+  updateSegTicks();
+}
+
+function updateSegKnob(center, stretch, now) {
+  const scale = 1 + (KNOB_SCALE_MAX - 1) * segGlassOp;
+  const baseW = SL_KNOB_W * scale;
+  const baseH = SL_KNOB_H * scale;
+  const visualW = baseW * (1 + stretch);
+  const visualH = baseH * (1 - Math.abs(stretch) * 0.22);
+  const left = center - visualW / 2;
+  const top = (segRect.hh * 2 - visualH) / 2;
+  const radius = visualH / 2;
+
+  segKnob.style.left = left + 'px';
+  segKnob.style.top = top + 'px';
+  segKnob.style.width = visualW + 'px';
+  segKnob.style.height = visualH + 'px';
+  segKnob.style.borderRadius = radius + 'px';
+  segKnobWhite.style.opacity = Math.max(0, 1 - segGlassOp);
+
+  if (segGlassOp > 0.01) {
+    const cxScreen = segRect.cx - segRect.hw + center;
+    const cyScreen = segRect.cy;
+    renderGlass(segKnobGlass,
+      cxScreen - visualW / 2, cyScreen - visualH / 2,
+      visualW, visualH, radius, {
+        amp: 10, range: 1, curve: 3, blur: 0, dispersion: 0,
+        tint: null, tintAmt: 0, edgeGlow: 0.05,
+        specIntensity: 1, specWidth: 1.5,
+        dpr: getDPR(), sceneSampler: segSceneSampler
+      });
+    segKnobGlass.style.opacity = Math.min(1, segGlassOp);
+    segKnobGlass.style.display = 'block';
+  } else {
+    segKnobGlass.style.opacity = 0;
+    segKnobGlass.style.display = 'none';
+  }
+}
+
+function animateSegGlass(target, duration) {
+  segGlassAnimFrom = segGlassOp;
+  segGlassAnimTo = target;
+  segGlassAnimStart = performance.now();
+  segGlassAnimDuration = duration;
+  if (!segGlassRAF) segGlassRAF = requestAnimationFrame(segGlassTick);
+}
+function segGlassTick(now) {
+  if (segGlassAnimDuration > 0) {
+    const t = Math.min(1, (now - segGlassAnimStart) / segGlassAnimDuration);
+    segGlassOp = segGlassAnimFrom + (segGlassAnimTo - segGlassAnimFrom) * easeOutQuart(t);
+    if (t >= 1) { segGlassOp = segGlassAnimTo; segGlassAnimDuration = 0; }
+  }
+  if (!segDragging && !segSnapRAF) updateSegKnob(segCenter, 0, now);
+  if (segGlassAnimDuration > 0) segGlassRAF = requestAnimationFrame(segGlassTick);
+  else segGlassRAF = null;
+}
+
+/* 松手吸附到最近槽位：easeOutCubic 短程滑入，带一点果冻形变 */
+function segSnapToNearest() {
+  const target = segSlotX(nearestSegIndex(segCenter));
+  const from = segCenter;
+  const start = performance.now();
+  const DUR = 260;
+  cancelSegSnap();
+  function tick(now) {
+    const t = Math.min(1, (now - start) / DUR);
+    const e = easeOutCubic(t);
+    segCenter = from + (target - from) * e;
+    const stretch = computeStretchFromDisplacement(segCenter - from) * (1 - t);
+    applySegFill();
+    updateSegKnob(segCenter, stretch, now);
+    if (t < 1) segSnapRAF = requestAnimationFrame(tick);
+    else { segSnapRAF = null; segCenter = target; applySegFill(); updateSegKnob(segCenter, 0, now); }
+  }
+  segSnapRAF = requestAnimationFrame(tick);
+}
+function cancelSegSnap() {
+  if (segSnapRAF) { cancelAnimationFrame(segSnapRAF); segSnapRAF = null; }
+}
+
+function onSegDown(e) {
+  if (segDragging) return;
+  cancelSegSnap();
+  updateSegRect();
+  const rel = e.clientX - (segRect.cx - segRect.hw);
+  segDragStartCenter = Math.max(0, Math.min(segRect.w, rel));
+  segCenter = segDragStartCenter;
+  segDragStartClientX = e.clientX;
+  segLastMoveTime = performance.now();
+  segVel = 0;
+  segDragging = true;
+  segTrack.classList.add('dragging');
+  try { segTrack.setPointerCapture(e.pointerId); } catch (_) {}
+  applySegFill();
+  updateSegKnob(segCenter, 0, performance.now());
+  animateSegGlass(1, 70);
+  e.preventDefault();
+}
+
+function onSegMove(e) {
+  if (!segDragging) return;
+  const dx = e.clientX - segDragStartClientX;
+  const now = performance.now();
+  let center = segDragStartCenter + dx;
+  center = Math.max(0, Math.min(segRect.w, center));
+  /* 阻尼：接近槽位时被明显吸住，制造分段的“坎”，但系数<1 不锁死，仍可强行拖过 */
+  const idx = nearestSegIndex(center);
+  const slot = segSlotX(idx);
+  const DAMP = 24;
+  if (Math.abs(center - slot) < DAMP) {
+    center = center + (slot - center) * 0.55;
+  }
+  const v = (center - segCenter) / Math.max(1, now - segLastMoveTime);
+  segVel = segVel * 0.35 + v * 0.65;
+  segLastMoveTime = now;
+  segCenter = center;
+  applySegFill();
+  const stretch = computeStretchFromDisplacement(center - segDragStartCenter) + computeStretchFromVelocity(segVel);
+  updateSegKnob(segCenter, stretch, now);
+}
+
+function onSegUp(e) {
+  if (!segDragging) return;
+  segDragging = false;
+  segTrack.classList.remove('dragging');
+  try { if (segTrack.hasPointerCapture(e.pointerId)) segTrack.releasePointerCapture(e.pointerId); } catch (_) {}
+  animateSegGlass(0, 90);
+  segSnapToNearest();
+}
+
+segTrack.addEventListener('pointerdown', onSegDown);
+segTrack.addEventListener('pointermove', onSegMove);
+segTrack.addEventListener('pointerup', onSegUp);
+segTrack.addEventListener('pointercancel', onSegUp);
+segTrack.addEventListener('mousedown', onSegDown);
+window.addEventListener('mousemove', onSegMove);
+window.addEventListener('mouseup', onSegUp);
+
+/* ---- 滑条参数 sheet：无级大小 / 分段大小 / 段数 ---- */
+const sliderParamBtn = document.getElementById('sliderParamBtn');
+const sliderSheet = document.getElementById('sliderSheet');
+const sliderSheetCanvas = document.getElementById('sliderSheetCanvas');
+const sliderSizeInput = document.getElementById('sliderSize');
+const segSizeInput = document.getElementById('segSize');
+const segCountInput = document.getElementById('segCount');
+const vSliderSize = document.getElementById('vSliderSize');
+const vSegSize = document.getElementById('vSegSize');
+const vSegCount = document.getElementById('vSegCount');
+const sliderPage = document.getElementById('pageSlider');
+let sliderSheetOpen = false;
+let sliderActiveTab = 'ssize';
+
+function applySliderSize() {
+  sliderSize = +sliderSizeInput.value;
+  vSliderSize.textContent = sliderSize.toFixed(2) + '×';
+  setSliderMode('continuous');
+  layoutSlider();
+}
+function applySegSize() {
+  segSize = +segSizeInput.value;
+  vSegSize.textContent = segSize.toFixed(2) + '×';
+  applySegWidth(); updateSegRect();
+  renderSegTicks();
+  segCenter = segSlotX(nearestSegIndex(segCenter));
+  applySegFill(); updateSegKnob(segCenter, 0, performance.now());
+}
+function applySegCount() {
+  segCount = +segCountInput.value;
+  vSegCount.textContent = segCount;
+  applySegWidth(); updateSegRect();
+  renderSegTicks();
+  segCenter = segSlotX(nearestSegIndex(segCenter));
+  applySegFill(); updateSegKnob(segCenter, 0, performance.now());
+}
+sliderSizeInput.addEventListener('input', applySliderSize);
+document.getElementById('modeContinuous').addEventListener('click', () => setSliderMode('continuous'));
+document.getElementById('modeSegmented').addEventListener('click', () => setSliderMode('segmented'));
+segSizeInput.addEventListener('input', applySegSize);
+segCountInput.addEventListener('input', applySegCount);
+
+sliderParamBtn.addEventListener('click', () => {
+  sliderSheetOpen = !sliderSheetOpen;
+  if (sliderSheetOpen) {
+    openSheetMorph(sliderSheet, sliderSheetCanvas, fitSheetHeight, sliderParamBtn);
+    renderRoundBtn(sliderParamBtn);
+  } else {
+    closeSheetMorph(sliderSheet, sliderParamBtn);
+  }
+});
+document.querySelectorAll('#sliderSheet .sheet-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    sliderActiveTab = btn.dataset.tab;
+    document.querySelectorAll('#sliderSheet .sheet-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === sliderActiveTab));
+    document.querySelectorAll('#sliderSheet .pane').forEach(el => el.classList.toggle('active', el.dataset.pane === sliderActiveTab));
+    fitSheetHeight(sliderSheet, sliderSheetCanvas);
+  });
+});
+sliderPage.addEventListener('pointerdown', (e) => {
+  if (!sliderSheetOpen) return;
+  if (sliderSheet.contains(e.target)) return;
+  if (sliderParamBtn.contains(e.target)) return;
+  sliderSheetOpen = false;
+  closeSheetMorph(sliderSheet, sliderParamBtn);
+});
+
+/* ================= 设置页 ================= */
+const precisionSliderEl = document.getElementById('precisionSlider');
+const precisionValueEl = document.getElementById('precisionValue');
+const fpsSliderEl = document.getElementById('fpsSlider');
+const fpsValueEl = document.getElementById('fpsValue');
+const fpsToggle = document.getElementById('fpsToggle');
+const fpsDisplay = document.getElementById('fpsDisplay');
+
+precisionSliderEl.value = precisionValue;
+precisionValueEl.textContent = precisionValue.toFixed(1) + '×';
+precisionSliderEl.addEventListener('input', () => {
+  precisionValue = +precisionSliderEl.value;
+  precisionValueEl.textContent = precisionValue.toFixed(1) + '×';
+  glassBufCache.clear();
+  renderCurrentPage();
+});
+
+fpsSliderEl.value = targetFps;
+fpsValueEl.textContent = targetFps + 'fps';
+fpsSliderEl.addEventListener('input', () => {
+  targetFps = +fpsSliderEl.value;
+  fpsValueEl.textContent = targetFps + 'fps';
+});
+
+let fpsRunning = false, fpsFrames = 0, fpsLastTime = performance.now();
+function fpsTick(now) {
+  if (!fpsRunning) return;
+  fpsFrames++;
+  if (now - fpsLastTime >= 500) {
+    const fps = Math.round(fpsFrames * 1000 / (now - fpsLastTime));
+    fpsDisplay.textContent = fps + ' FPS';
+    fpsFrames = 0; fpsLastTime = now;
+  }
+  requestAnimationFrame(fpsTick);
+}
+fpsToggle.addEventListener('change', () => {
+  fpsDisplay.classList.toggle('on', fpsToggle.checked);
+  if (fpsToggle.checked && !fpsRunning) {
+    fpsRunning = true; fpsFrames = 0; fpsLastTime = performance.now();
+    requestAnimationFrame(fpsTick);
+  } else if (!fpsToggle.checked) {
+    fpsRunning = false;
+  }
+});
+
+/* 深色模式：仅给全局控件叠压层/白层，模拟对象不参与；切换后实时重绘控件玻璃 */
+const darkModeToggle = document.getElementById('darkModeToggle');
+function applyTheme(dark) {
+  document.body.classList.toggle('theme-dark', dark);
+  renderCurrentPage();
+  if (sheetOpen) paintSheetGlassFor(sheet, sheetCanvas);
+  if (textSheetOpen) paintSheetGlassFor(textSheet, textSheetCanvas);
+  if (toggleSheetOpen) fitSheetHeight(toggleSheet, toggleSheetCanvas);
+  if (sliderSheetOpen) paintSheetGlassFor(sliderSheet, sliderSheetCanvas);
+}
+darkModeToggle.addEventListener('change', () => applyTheme(darkModeToggle.checked));
+
+function renderCurrentPage() {
+  if (currentPage === 'home') renderHome();
+  else if (currentPage === 'capsule') renderCapsuleAll();
+  else if (currentPage === 'text') renderTextAll();
+  else if (currentPage === 'toggle') { layoutToggle(); }
+  else if (currentPage === 'slider') { layoutSlider(); }
+  else if (currentPage === 'settings') renderSettings();
+}
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    rebuildBgCanvas();
+    if (currentPage === 'capsule') { 
+        layoutCapsule(); renderCapsuleAll(); 
+        if (sheetOpen) fitSheetHeight(sheet, sheetCanvas);
+    }
+    else if (currentPage === 'text') { 
+        layoutTextGlass(); renderTextAll(); 
+    if (textSheetOpen) fitSheetHeight(textSheet, textSheetCanvas);
+    }
+    else if (currentPage === 'toggle') {
+        layoutToggle();
+        if (toggleSheetOpen) fitSheetHeight(toggleSheet, toggleSheetCanvas);
+    }
+    else if (currentPage === 'slider') { 
+        layoutSlider(); 
+        if (sliderSheetOpen) fitSheetHeight(sliderSheet, sliderSheetCanvas);
+    }
+    else renderCurrentPage();
+  }, 80);
+});
+
+updateFromSliders();
+updateTint();
+updateTextParams();
+updateTextTint();
+layoutToggle();
+layoutSlider();
+renderCurrentPage();
+</script>
+</body>
+</html>
